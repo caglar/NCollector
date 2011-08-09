@@ -87,7 +87,7 @@ struct struct_export_v7 {
 struct template_field_v9 {
   u_int16_t type;
   u_int16_t len;
-}; 
+};
 
 struct template_hdr_v9 {
   u_int16_t template_id;
@@ -196,7 +196,7 @@ struct data_hdr_v9 /*flowset_hdr_v9*/ {
 #define NF9_FTYPE_MPLS			10
 #define NF9_FTYPE_MPLS_IPV4		10
 #define NF9_FTYPE_MPLS_IPV6		11
-#define NF9_FTYPE_VLAN_MPLS		15	
+#define NF9_FTYPE_VLAN_MPLS		15
 #define NF9_FTYPE_VLAN_MPLS_IPV4	15
 #define NF9_FTYPE_VLAN_MPLS_IPV6	16
 
@@ -232,12 +232,12 @@ struct host_addr {
 struct template_cache_entry {
   u_int16_t template_id;		/* template ID */
   u_int16_t template_type;		/* Data = 0, Options = 1 */
-  u_int16_t num;			/* number of fields described into template */ 
+  u_int16_t num;			/* number of fields described into template */
   u_int16_t len;			/* total length of the described flowset */
   char table_name[24];
   //char template_entry[1500];		/* 除去Template ID和Field Count字段的模板实体 */
   struct otpl_field tpl_entry[NF9_MAX_DEFINED_FIELD];
-  //struct template_cache_entry *next;	
+  //struct template_cache_entry *next;
 };
 
 struct template_cache {

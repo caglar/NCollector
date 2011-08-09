@@ -1,10 +1,7 @@
 clean: obj
 	rm *.o
 obj: main.o
-	g++ -Wall -o collector -L /usr/local/lib/ -lmysqlpp main.o
-#-lmysqlpp指定连接的库，在默认的库文件存放地：/usr/lib等路径中搜索
+	g++ -O4 -Wall -o collector -L /usr/local/lib/ -lmysqlpp main.o
 
 main.o: main.cpp
-	g++ -Wall -c -I /usr/local/include/mysql++ -I /usr/include/mysql main.cpp
-#-I /usr/include/mysql++ -I /usr/include/mysql指定包含的头文件所在目录
-
+	g++ -O4 -Wall -c -I /usr/local/include/mysql++ -I /usr/include/mysql main.cpp

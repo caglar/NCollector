@@ -169,7 +169,6 @@ string table_name_suffix ()
   nt = time(NULL);
   nowtime = localtime(&nt);
   strftime(tmp, sizeof(tmp), "%Y%m%d%H%M%S", nowtime);	//template_20100706123524
-
   string suf("_");
   suf.append(tmp, 14);
   return suf;
@@ -227,7 +226,6 @@ int insert_template_v9 ( struct template_hdr_v9* hdr )
   //cout << __LINE__ << " value length is " << field_length << endl;
   tpl_cache.num++;
   //cout << "size of new entry : " << strlen(new_template_entry) << endl;
-
   return tpl_cache.num-1;//Just insert the template to return the position in the array
 }
 
@@ -303,12 +301,9 @@ bool compare_field_same (int pos, struct template_hdr_v9* hdr)
     return false;
   }
   struct otpl_field* field_ptr = (struct otpl_field*) (hdr+1);
-  //cout << tpl_cache.c[pos].num << endl;
   //Comparing each field type and length
   for (int i = 0; i < tpl_cache.c[pos].num; i++)
   {
-    //cout << tpl_cache.c[pos].tpl_entry[i].type << " " << ntohs((field_ptr+i)->type) << endl;
-    //cout << tpl_cache.c[pos].tpl_entry[i].len << " " << ntohs((field_ptr+i)->len) << endl;
     if ( (tpl_cache.c[pos].tpl_entry[i].type != ntohs((field_ptr+i)->type)))
     {
       return false;
