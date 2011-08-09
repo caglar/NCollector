@@ -367,7 +367,7 @@ void handle_data_v9 (int pos, struct data_hdr_v9* hdr)
 void process_v9_packet (unsigned char *pkt, int len /* 整个v9报文的长度 */)
 {
 	//cout << __LINE__ << " " << __FUNCTION__ << endl;
-	//Record the location of the first pointer
+	//Save the location of the first pointer
 	try
 	{
 		u_char *f_header = pkt; /* ptr to NetFlow packet header */ 

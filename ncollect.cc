@@ -7,8 +7,15 @@
 #include <strings.h>
 
 #include "netflow.h"
+#include "parse_conf.h"
 
-int main(void)
+static const char *CONF_FILE = "ncollect.cfg";
+
+void parse_conf(){
+
+}
+
+int main(int argc, char **argv)
 {
   var_init();
   int sockfd;
