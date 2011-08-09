@@ -129,7 +129,6 @@ void var_init ()
   index_field_type_map[87] = make_pair("", "");
   index_field_type_map[88] = make_pair("", "");
   index_field_type_map[89] = make_pair("FORWARDING_STATUS", "char");
-
 }
 
 void print_packet(unsigned char pkt[], int len)
@@ -197,7 +196,6 @@ int main(void)
     packet_version = ntohs(((struct struct_header_v9 *)netflow_packet)->version);
     if (packet_version == 9)
     {
-      //printbinary(netflow_packet, ret);
       process_v9_packet(netflow_packet, ret);
     }
   }
@@ -217,8 +215,6 @@ string table_name_suffix ()
 
   string suf("_");
   suf.append(tmp, 14);
-  //cout << suf << endl;
-
   return suf;
 }
 
@@ -297,7 +293,7 @@ void create_new_table (int pos)
   try
   {
     vector < pair<string, string> > template_field;	/* pair< 字段名，初始类型 > */
-    Connection conn("bw_nf_collector", "127.0.0.1", "root", "10241024Cag");
+    Connection conn("bw_nf_collector", "127.0.0.1", "root", "10241024cag");
     Query query(conn.query());
 
     parse_template_field(pos, template_field);
@@ -426,175 +422,177 @@ void process_v9_packet (unsigned char *pkt, int len /* 整个v9报文的长度 *
     pkt += NfHdrV9Sz;
     off += NfHdrV9Sz;
 
-process_flowset:
-    if (off+NfDataHdrV9Sz >= len)
-    {
-      cout << "INFO: unable to read next Flowset; incomplete NetFlow v9 packet" << endl;
-      return;
-    }
-    data_hdr = (struct data_hdr_v9 *)pkt;
-    fid = ntohs(data_hdr->flow_id);
-
-    if (fid == 0) 
-    {
-      /* template */
-      //cout << "template." << endl;
-      print_packet (pkt, len-20);
-      //printbinary    (pkt, len-20);
-      unsigned char *tpl_ptr = pkt;
-
-      flowoff = 0;
-      //跳过4个字节的数据头
-      tpl_ptr += NfDataHdrV9Sz;
-      flowoff += NfDataHdrV9Sz;
-      //这个是整个模板流集的长度
-      flowsetlen = ntohs(data_hdr->flow_len);
-
-      //cout << "flowsetlen is " << flowsetlen << endl;
-      while (flowoff < flowsetlen) 
+    //process_flowset:
+    do {
+      if (off+NfDataHdrV9Sz >= len)
       {
-        //取出模板流集的第二行，也是模板记录的第一行
-        template_hdr = (struct template_hdr_v9 *) tpl_ptr;
-        if ( off+flowsetlen > len )
-        {
-          cout << "INFO: unable to read next Template Flowset; incomplete NetFlow v9 packet" << endl;
-          break;
-          //return;
-        }
-        handle_template_v9(template_hdr, fid);
-        //移动指针到下一个模板记录
-        tpl_ptr += sizeof(struct template_hdr_v9)+ntohs(template_hdr->num)*sizeof(struct template_field_v9); 
-        //计算已处理的数据长度，模板流集的内部位移
-        flowoff += sizeof(struct template_hdr_v9)+ntohs(template_hdr->num)*sizeof(struct template_field_v9);
-        //cout << "template record. " << endl;
-      }
-
-      pkt += flowsetlen; 
-      off += flowsetlen; 
-    }
-    else if (fid >= 256) 
-    { /* data */
-      //cout << "data." << endl;
-      unsigned char *dat_ptr = pkt;
-      //printbinary    (pkt, len-20);
-      struct otpl_field* field_ptr;
-      flowsetlen = ntohs(data_hdr->flow_len);
-      if (off+flowsetlen > len) { 
-        cout << __LINE__ << "INFO: unable to read next Data Flowset (incomplete NetFlow v9 packet)" << endl;
+        cout << "INFO: unable to read next Flowset; incomplete NetFlow v9 packet" << endl;
         return;
       }
+      data_hdr = (struct data_hdr_v9 *)pkt;
+      fid = ntohs(data_hdr->flow_id);
 
-      flowoff = 0;
-      dat_ptr += NfDataHdrV9Sz;
-      flowoff += NfDataHdrV9Sz;
-
-      int pos = find_template_id(ntohs(data_hdr->flow_id));
-      if (pos == -1)	//
+      if (fid == 0) 
       {
-        //parse data packet
-        cout << __LINE__ << " DEBUG ( default/core ): Discarded NetFlow V9 packet (R: unknown template " << endl;
-        return;
-      }
-      else
-      {
-        string table_name (tpl_cache.c[pos].table_name);
-        char tmp_str[46];
+        /* template */
+        //cout << "template." << endl;
+        print_packet (pkt, len-20);
+        //printbinary    (pkt, len-20);
+        unsigned char *tpl_ptr = pkt;
 
-        string field_list;
-        string value_list;
+        flowoff = 0;
+        //跳过4个字节的数据头
+        tpl_ptr += NfDataHdrV9Sz;
+        flowoff += NfDataHdrV9Sz;
+        //这个是整个模板流集的长度
+        flowsetlen = ntohs(data_hdr->flow_len);
+
         //cout << "flowsetlen is " << flowsetlen << endl;
-        //在一个数据流集里面循环解码
-        while (flowoff + tpl_cache.c[pos].len <= flowsetlen)
+        while (flowoff < flowsetlen) 
         {
-          //cout << __LINE__ << " data record. record length is " << tpl_cache.c[pos].len << endl;
-          //对于一条记录循环取出数值
-          for (int i = 0; i < tpl_cache.c[pos].num; i++)
+          //取出模板流集的第二行，也是模板记录的第一行
+          template_hdr = (struct template_hdr_v9 *) tpl_ptr;
+          if ( off+flowsetlen > len )
           {
-            field_list += index_field_type_map[tpl_cache.c[pos].tpl_entry[i].type].first + ", ";
-            switch ( tpl_cache.c[pos].tpl_entry[i].len )
-            {
-             case 1:
-               {
-                 //unsigned char a = *((unsigned char*)dat_ptr);
-                 sprintf(tmp_str, "%u", *((unsigned char*)dat_ptr));
-                 value_list.append(tmp_str);
-                 value_list += ", ";
-                 dat_ptr++;
-                 break;
-               }
-             case 2:
-               {
-                 //unsigned short b = ntohs(*((unsigned short*)dat_ptr));
-                 sprintf (tmp_str, "%u", ntohs(*((unsigned short*)dat_ptr)));
-                 value_list.append (tmp_str);
-                 value_list += ", ";
-                 dat_ptr += 2;
-                 break;
-               }
-             case 4:
-               {
-                 //unsigned int c = ntohl(*((unsigned int*)dat_ptr));
-                 sprintf (tmp_str, "%u", ntohl(*((unsigned int*)dat_ptr)));
-                 value_list.append (tmp_str);
-                 value_list += ", ";
-                 dat_ptr += 4;
-                 break;
-               }
-             case 6:
-             case 16:
-               {
-                 struct sockaddr_in6 e = *((sockaddr_in6*)dat_ptr);
-                 inet_ntop(AF_INET6, (void*)&e, tmp_str, sizeof(tmp_str));
-                 value_list.append ("\"");
-                 value_list.append (tmp_str);
-                 value_list.append ("\"");
-                 value_list += ", ";
-                 dat_ptr += 16;
-                 break;
-               }
-             default:
-               {
-                 cout << __LINE__ << " unknown field length. " << endl;
-                 break;
-               }
-            }
+            cout << "INFO: unable to read next Template Flowset; incomplete NetFlow v9 packet" << endl;
+            break;
+            //return;
           }
-          cout << "IN BYTES: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[1].type].second<<endl;
-          cout << "PROTO: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[2].type].second<<endl;
-          cout << "IN PKTS: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[4].type].second<<endl;
-          cout << "OUT PKTS: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[23].type].second<<endl;
-          cout << "OUT BYTES: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[24].type].second<<endl;
-          cout << "SRC PORT: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[7].type].second<<endl;
-          cout << "DEST PORT: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[11].type].second<<endl;
-
-          value_list.erase (value_list.size()-2, 2);	/* 去掉最后一个逗号和一个空格 */
-          field_list.erase (field_list.size()-2, 2);	/* 去掉最后一个逗号和一个空格 */
-          string sql = "INSERT INTO " + table_name + " (" +field_list+ ")" + " VALUES (" +value_list+ ");";
-          value_list.clear();
-          field_list.clear();
-          cout << sql << endl;
-          query << sql;
-          query.execute();
-          flowoff += tpl_cache.c[pos].len;
+          handle_template_v9(template_hdr, fid);
+          //移动指针到下一个模板记录
+          tpl_ptr += sizeof(struct template_hdr_v9)+ntohs(template_hdr->num)*sizeof(struct template_field_v9); 
+          //计算已处理的数据长度，模板流集的内部位移
+          flowoff += sizeof(struct template_hdr_v9)+ntohs(template_hdr->num)*sizeof(struct template_field_v9);
+          //cout << "template record. " << endl;
         }
+
+        pkt += flowsetlen; 
+        off += flowsetlen; 
       }
-      //pkt += flowsetlen-flowoff; /* handling padding */
-      pkt += flowsetlen;
-      off += flowsetlen; 
-    }
-    else if (fid == 1) 
-    { /* options template */
-      cout << "options." << endl;
-    }
-    else 
-    { /* unsupported flowset */
-      cout << "unknown." << endl;
-    }
-    if (off < len) 
-    {
+      else if (fid >= 256) 
+      { /* data */
+        //cout << "data." << endl;
+        unsigned char *dat_ptr = pkt;
+        //printbinary    (pkt, len-20);
+        struct otpl_field* field_ptr;
+        flowsetlen = ntohs(data_hdr->flow_len);
+        if (off+flowsetlen > len) { 
+          cout << __LINE__ << "INFO: unable to read next Data Flowset (incomplete NetFlow v9 packet)" << endl;
+          return;
+        }
+
+        flowoff = 0;
+        dat_ptr += NfDataHdrV9Sz;
+        flowoff += NfDataHdrV9Sz;
+
+        int pos = find_template_id(ntohs(data_hdr->flow_id));
+        if (pos == -1)	//
+        {
+          //parse data packet
+          cout << __LINE__ << " DEBUG ( default/core ): Discarded NetFlow V9 packet (R: unknown template " << endl;
+          return;
+        }
+        else
+        {
+          string table_name (tpl_cache.c[pos].table_name);
+          char tmp_str[46];
+
+          string field_list;
+          string value_list;
+          //cout << "flowsetlen is " << flowsetlen << endl;
+          //在一个数据流集里面循环解码
+          while (flowoff + tpl_cache.c[pos].len <= flowsetlen)
+          {
+            //cout << __LINE__ << " data record. record length is " << tpl_cache.c[pos].len << endl;
+            //对于一条记录循环取出数值
+            for (int i = 0; i < tpl_cache.c[pos].num; i++)
+            {
+              field_list += index_field_type_map[tpl_cache.c[pos].tpl_entry[i].type].first + ", ";
+              switch ( tpl_cache.c[pos].tpl_entry[i].len )
+              {
+               case 1:
+                 {
+                   //unsigned char a = *((unsigned char*)dat_ptr);
+                   sprintf(tmp_str, "%u", *((unsigned char*)dat_ptr));
+                   value_list.append(tmp_str);
+                   value_list += ", ";
+                   dat_ptr++;
+                   break;
+                 }
+               case 2:
+                 {
+                   //unsigned short b = ntohs(*((unsigned short*)dat_ptr));
+                   sprintf (tmp_str, "%u", ntohs(*((unsigned short*)dat_ptr)));
+                   value_list.append (tmp_str);
+                   value_list += ", ";
+                   dat_ptr += 2;
+                   break;
+                 }
+               case 4:
+                 {
+                   //unsigned int c = ntohl(*((unsigned int*)dat_ptr));
+                   sprintf (tmp_str, "%u", ntohl(*((unsigned int*)dat_ptr)));
+                   value_list.append (tmp_str);
+                   value_list += ", ";
+                   dat_ptr += 4;
+                   break;
+                 }
+               case 6:
+               case 16:
+                 {
+                   struct sockaddr_in6 e = *((sockaddr_in6*)dat_ptr);
+                   inet_ntop(AF_INET6, (void*)&e, tmp_str, sizeof(tmp_str));
+                   value_list.append ("\"");
+                   value_list.append (tmp_str);
+                   value_list.append ("\"");
+                   value_list += ", ";
+                   dat_ptr += 16;
+                   break;
+                 }
+               default:
+                 {
+                   cout << __LINE__ << " unknown field length. " << endl;
+                   break;
+                 }
+              }
+            }
+            cout << "IN BYTES: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[1].type].second<<endl;
+            cout << "PROTO: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[2].type].second<<endl;
+            cout << "IN PKTS: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[4].type].second<<endl;
+            cout << "OUT PKTS: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[23].type].second<<endl;
+            cout << "OUT BYTES: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[24].type].second<<endl;
+            cout << "SRC PORT: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[7].type].second<<endl;
+            cout << "DEST PORT: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[11].type].second<<endl;
+
+            value_list.erase (value_list.size()-2, 2);	/* 去掉最后一个逗号和一个空格 */
+            field_list.erase (field_list.size()-2, 2);	/* 去掉最后一个逗号和一个空格 */
+            string sql = "INSERT INTO " + table_name + " (" +field_list+ ")" + " VALUES (" +value_list+ ");";
+            value_list.clear();
+            field_list.clear();
+            cout << sql << endl;
+            query << sql;
+            query.execute();
+            flowoff += tpl_cache.c[pos].len;
+          }
+        }
+        //pkt += flowsetlen-flowoff; /* handling padding */
+        pkt += flowsetlen;
+        off += flowsetlen; 
+      }
+      else if (fid == 1) 
+      { /* options template */
+        cout << "options." << endl;
+      }
+      else 
+      { /* unsupported flowset */
+        cout << "unknown." << endl;
+      }
+      /*    if (off < len) 
+            {
       //cout << "goto process_flowset" << endl;
       goto process_flowset;
-    }
+      }*/
+    } while(off < len);
     conn.disconnect();
   }
   catch (const Exception& er)
