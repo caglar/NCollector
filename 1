@@ -38,13 +38,14 @@ void var_init ()
   c_type_to_db_type["sockaddr_in6"] = "VARCHAR(40)";
   c_type_to_db_type["mac_addr"] = "VARCHAR(40)";
 
+  //这个map可以丢弃不用
   c_type_to_c_type_len["int"] = 4;
   c_type_to_c_type_len["char"] = 1;
   c_type_to_c_type_len["short"] = 2;
   c_type_to_c_type_len["sockaddr_in6"] = 16;
   c_type_to_c_type_len["mac_addr"] = 6;
 
-  index_field_type_map[1] = make_pair("IN_BYTE_1", "int");
+  index_field_type_map[1] = make_pair("IN_BYTE_1"/*字段名（字段类型索引）*/, "int"/*字段类型*/);
   index_field_type_map[2] = make_pair("IN_PKTS_2", "int");
   index_field_type_map[3] = make_pair("FLOWS_3", "int");
   index_field_type_map[4] = make_pair("PROTOCOL_4", "char");
@@ -159,6 +160,48 @@ void printbinary (unsigned char* bin, int len)
   }
 }
 
+int main(void)
+{
+  var_init();
+  int sockfd;
+  struct sockaddr_in servaddr, cliaddr;
+  socklen_t clen = sizeof (cliaddr);
+  unsigned char netflow_packet[NETFLOW_MSG_SIZE];
+  int ret;
+
+  sockfd = socket(AF_INET, SOCK_DGRAM, 0); /* create a socket */
+
+  /* init servaddr */
+  bzero(&servaddr, sizeof(servaddr));
+  servaddr.sin_family = AF_INET;
+  servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+  servaddr.sin_port = htons(SERV_PORT);
+
+  /* bind address and port to socket */
+  if(bind(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) == -1)
+  {
+    perror("bind error");
+    exit(1);
+  }
+
+  unsigned short int packet_version;
+  for(;;)
+  {
+    ret = recvfrom(sockfd, netflow_packet, NETFLOW_MSG_SIZE, 0, (struct sockaddr *) &cliaddr, &clen);
+    if (ret < 1)
+    { 
+      continue; /* we don't have enough data to decode the version */ 
+    }
+    //cout << __LINE__ << " packet length is : " << ret << endl;
+    packet_version = ntohs(((struct struct_header_v9 *)netflow_packet)->version);
+    if (packet_version == 9)
+    {
+      process_v9_packet(netflow_packet, ret);
+    }
+  }
+  return 0;
+}
+
 string table_name_suffix ()
 {
   //cout << __LINE__ << " " << __FUNCTION__ << endl;
@@ -181,7 +224,7 @@ void refresh_template_v9 ( int pos, struct template_hdr_v9* hdr )
   int field_length = 0;
   tpl_cache.c[pos].template_id = ntohs(hdr->template_id);
   tpl_cache.c[pos].template_type = 0;
-  tpl_cache.c[pos].num = ntohs (hdr->num);//Number of fields
+  tpl_cache.c[pos].num = ntohs (hdr->num)/*字段的数量*/;
   string table_name = "template" + table_name_suffix();
   memcpy (tpl_cache.c[pos].table_name, table_name.c_str(), table_name.size()+1);
   tpl_cache.c[pos].table_name[23] = '\0';
@@ -210,7 +253,7 @@ int insert_template_v9 ( struct template_hdr_v9* hdr )
 
   tpl_cache.c[tpl_cache.num].template_id = ntohs(hdr->template_id);
   tpl_cache.c[tpl_cache.num].template_type = 0;
-  tpl_cache.c[tpl_cache.num].num = ntohs(hdr->num);//Number of fields
+  tpl_cache.c[tpl_cache.num].num = ntohs(hdr->num)/*字段的数量*/;
   string table_name = "template" + table_name_suffix();
   memcpy (tpl_cache.c[tpl_cache.num].table_name, table_name.c_str(), table_name.size()+1);
   tpl_cache.c[tpl_cache.num].table_name[23] = '\0';
@@ -228,7 +271,7 @@ int insert_template_v9 ( struct template_hdr_v9* hdr )
   tpl_cache.num++;
   //cout << "size of new entry : " << strlen(new_template_entry) << endl;
 
-  return tpl_cache.num-1;//Just insert the template to return the position in the array
+  return tpl_cache.num-1/*返回刚插入的模板在数组中的位置*/;
 }
 
 void parse_template_field (int pos, vector< pair<string, string> >& template_field)
@@ -249,8 +292,7 @@ void create_new_table (int pos)
   cout << __LINE__ << " " << __FUNCTION__ << endl;
   try
   {
-    vector < pair<string, string> > template_field;
-    /* pair< Field names, the initial type> */
+    vector < pair<string, string> > template_field;	/* pair< 字段名，初始类型 > */
     Connection conn("bw_nf_collector", "127.0.0.1", "root", "10241024cag");
     Query query(conn.query());
 
@@ -264,8 +306,7 @@ void create_new_table (int pos)
     {
       sql += it->first + " " + c_type_to_db_type[it->second] + " NOT NULL ,";
     }
-    sql.erase (sql.size()-1, 1);
-    //Remove the last comma
+    sql.erase (sql.size()-1, 1);	/* 去掉最后一个逗号 */
     sql += ") ENGINE = InnoDB CHARACTER SET utf8 COLLATE utf8_unicode_ci;";
     cout << sql << endl;
     query << sql;
@@ -279,9 +320,7 @@ void create_new_table (int pos)
   }
 }
 
-int
-//Return the template position in the cache array
-find_template_id (int id)
+int/*返回模板在缓存数组中的位置*/ find_template_id (int id)
 {
   cout << __LINE__ << " " << __FUNCTION__ << " id " << id << endl;
   for (int i = 0; i < tpl_cache.num; i++)
@@ -304,7 +343,7 @@ bool compare_field_same (int pos, struct template_hdr_v9* hdr)
   }
   struct otpl_field* field_ptr = (struct otpl_field*) (hdr+1);
   //cout << tpl_cache.c[pos].num << endl;
-  //Comparing each field type and length
+  //比较每一个字段的类型和长度
   for (int i = 0; i < tpl_cache.c[pos].num; i++)
   {
     //cout << tpl_cache.c[pos].tpl_entry[i].type << " " << ntohs((field_ptr+i)->type) << endl;
@@ -326,7 +365,7 @@ void handle_template_v9 (struct template_hdr_v9* hdr, u_int16_t type)
   struct template_cache_entry *tpl;
   int pos;
 
-  //If you find a template
+  //如果找到模板
   cout << __LINE__ << " tpl id : " << ntohs(hdr->template_id) << endl;
   if ( -1 != (pos = find_template_id (ntohs(hdr->template_id))))
   {
@@ -353,6 +392,7 @@ void handle_data_v9 (int pos, struct data_hdr_v9* hdr)
   int flowoff = 0;
   flowoff += sizeof (struct data_hdr_v9);
   while (flowoff + data_len <= data_flowset_len)
+
     //for (int i = 0; i < )
   {
 
@@ -362,7 +402,7 @@ void handle_data_v9 (int pos, struct data_hdr_v9* hdr)
 void process_v9_packet (unsigned char *pkt, int len /* 整个v9报文的长度 */)
 {
   //cout << __LINE__ << " " << __FUNCTION__ << endl;
-  //Record the location of the first pointer
+  //记录首指针的位置
   try
   {
     u_char *f_header = pkt; /* ptr to NetFlow packet header */ 
@@ -378,7 +418,7 @@ void process_v9_packet (unsigned char *pkt, int len /* 整个v9报文的长度 *
       cout << "INFO: discarding short NetFlow v9 packet" << endl;
       return;
     }
-    //Move the pointer to skip 20 byte header v9
+    //移动指针，跳过20字节的v9报文头
     pkt += NfHdrV9Sz;
     off += NfHdrV9Sz;
 
@@ -401,17 +441,16 @@ void process_v9_packet (unsigned char *pkt, int len /* 整个v9报文的长度 *
         unsigned char *tpl_ptr = pkt;
 
         flowoff = 0;
-        //Skip the first 4 bytes of data
+        //跳过4个字节的数据头
         tpl_ptr += NfDataHdrV9Sz;
         flowoff += NfDataHdrV9Sz;
-        //This is the length of the template stream set
+        //这个是整个模板流集的长度
         flowsetlen = ntohs(data_hdr->flow_len);
 
         //cout << "flowsetlen is " << flowsetlen << endl;
         while (flowoff < flowsetlen) 
         {
-          //Remove the template the second set of flow lines, is the first line of the template
-          //record
+          //取出模板流集的第二行，也是模板记录的第一行
           template_hdr = (struct template_hdr_v9 *) tpl_ptr;
           if ( off+flowsetlen > len )
           {
@@ -420,9 +459,9 @@ void process_v9_packet (unsigned char *pkt, int len /* 整个v9报文的长度 *
             //return;
           }
           handle_template_v9(template_hdr, fid);
-          //Move the pointer to the next template record
+          //移动指针到下一个模板记录
           tpl_ptr += sizeof(struct template_hdr_v9)+ntohs(template_hdr->num)*sizeof(struct template_field_v9); 
-          //Calculate the length of the data have been processed, the template set of internal displacement flow
+          //计算已处理的数据长度，模板流集的内部位移
           flowoff += sizeof(struct template_hdr_v9)+ntohs(template_hdr->num)*sizeof(struct template_field_v9);
           //cout << "template record. " << endl;
         }
@@ -461,11 +500,11 @@ void process_v9_packet (unsigned char *pkt, int len /* 整个v9报文的长度 *
           string field_list;
           string value_list;
           //cout << "flowsetlen is " << flowsetlen << endl;
-          //Set inside a data stream decoding cycle
+          //在一个数据流集里面循环解码
           while (flowoff + tpl_cache.c[pos].len <= flowsetlen)
           {
             //cout << __LINE__ << " data record. record length is " << tpl_cache.c[pos].len << endl;
-            //Out of loop for a record value
+            //对于一条记录循环取出数值
             for (int i = 0; i < tpl_cache.c[pos].num; i++)
             {
               field_list += index_field_type_map[tpl_cache.c[pos].tpl_entry[i].type].first + ", ";
@@ -525,8 +564,8 @@ void process_v9_packet (unsigned char *pkt, int len /* 整个v9报文的长度 *
             cout << "SRC PORT: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[7].type].second<<endl;
             cout << "DEST PORT: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[11].type].second<<endl;
 
-            value_list.erase (value_list.size()-2, 2);	//Remove the last space and comma
-            field_list.erase (field_list.size()-2, 2);	//Remove the last space and comma
+            value_list.erase (value_list.size()-2, 2);	/* 去掉最后一个逗号和一个空格 */
+            field_list.erase (field_list.size()-2, 2);	/* 去掉最后一个逗号和一个空格 */
             string sql = "INSERT INTO " + table_name + " (" +field_list+ ")" + " VALUES (" +value_list+ ");";
             value_list.clear();
             field_list.clear();
@@ -555,46 +594,4 @@ void process_v9_packet (unsigned char *pkt, int len /* 整个v9报文的长度 *
   {
     cout << __LINE__ << er.what() << endl;
   }
-}
-
-int main(void)
-{
-  var_init();
-  int sockfd;
-  struct sockaddr_in servaddr, cliaddr;
-  socklen_t clen = sizeof (cliaddr);
-  unsigned char netflow_packet[NETFLOW_MSG_SIZE];
-  int ret;
-
-  sockfd = socket(AF_INET, SOCK_DGRAM, 0); /* create a socket */
-
-  /* init servaddr */
-  bzero(&servaddr, sizeof(servaddr));
-  servaddr.sin_family = AF_INET;
-  servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-  servaddr.sin_port = htons(SERV_PORT);
-
-  /* bind address and port to socket */
-  if(bind(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) == -1)
-  {
-    perror("bind error");
-    exit(1);
-  }
-
-  unsigned short int packet_version;
-  for(;;)
-  {
-    ret = recvfrom(sockfd, netflow_packet, NETFLOW_MSG_SIZE, 0, (struct sockaddr *) &cliaddr, &clen);
-    if (ret < 1)
-    { 
-      continue; /* we don't have enough data to decode the version */ 
-    }
-    //cout << __LINE__ << " packet length is : " << ret << endl;
-    packet_version = ntohs(((struct struct_header_v9 *)netflow_packet)->version);
-    if (packet_version == 9)
-    {
-      process_v9_packet(netflow_packet, ret);
-    }
-  }
-  return 0;
 }

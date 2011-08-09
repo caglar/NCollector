@@ -38,13 +38,14 @@ void var_init ()
   c_type_to_db_type["sockaddr_in6"] = "VARCHAR(40)";
   c_type_to_db_type["mac_addr"] = "VARCHAR(40)";
 
+  //这个map可以丢弃不用
   c_type_to_c_type_len["int"] = 4;
   c_type_to_c_type_len["char"] = 1;
   c_type_to_c_type_len["short"] = 2;
   c_type_to_c_type_len["sockaddr_in6"] = 16;
   c_type_to_c_type_len["mac_addr"] = 6;
 
-  index_field_type_map[1] = make_pair("IN_BYTE_1", "int");
+  index_field_type_map[1] = make_pair("IN_BYTE_1"/*字段名（字段类型索引）*/, "int"/*字段类型*/);
   index_field_type_map[2] = make_pair("IN_PKTS_2", "int");
   index_field_type_map[3] = make_pair("FLOWS_3", "int");
   index_field_type_map[4] = make_pair("PROTOCOL_4", "char");
@@ -181,7 +182,7 @@ void refresh_template_v9 ( int pos, struct template_hdr_v9* hdr )
   int field_length = 0;
   tpl_cache.c[pos].template_id = ntohs(hdr->template_id);
   tpl_cache.c[pos].template_type = 0;
-  tpl_cache.c[pos].num = ntohs (hdr->num);//Number of fields
+  tpl_cache.c[pos].num = ntohs (hdr->num)/*字段的数量*/;
   string table_name = "template" + table_name_suffix();
   memcpy (tpl_cache.c[pos].table_name, table_name.c_str(), table_name.size()+1);
   tpl_cache.c[pos].table_name[23] = '\0';
@@ -210,7 +211,7 @@ int insert_template_v9 ( struct template_hdr_v9* hdr )
 
   tpl_cache.c[tpl_cache.num].template_id = ntohs(hdr->template_id);
   tpl_cache.c[tpl_cache.num].template_type = 0;
-  tpl_cache.c[tpl_cache.num].num = ntohs(hdr->num);//Number of fields
+  tpl_cache.c[tpl_cache.num].num = ntohs(hdr->num)/*字段的数量*/;
   string table_name = "template" + table_name_suffix();
   memcpy (tpl_cache.c[tpl_cache.num].table_name, table_name.c_str(), table_name.size()+1);
   tpl_cache.c[tpl_cache.num].table_name[23] = '\0';
@@ -228,7 +229,7 @@ int insert_template_v9 ( struct template_hdr_v9* hdr )
   tpl_cache.num++;
   //cout << "size of new entry : " << strlen(new_template_entry) << endl;
 
-  return tpl_cache.num-1;//Just insert the template to return the position in the array
+  return tpl_cache.num-1/*返回刚插入的模板在数组中的位置*/;
 }
 
 void parse_template_field (int pos, vector< pair<string, string> >& template_field)
@@ -249,8 +250,7 @@ void create_new_table (int pos)
   cout << __LINE__ << " " << __FUNCTION__ << endl;
   try
   {
-    vector < pair<string, string> > template_field;
-    /* pair< Field names, the initial type> */
+    vector < pair<string, string> > template_field;	/* pair< 字段名，初始类型 > */
     Connection conn("bw_nf_collector", "127.0.0.1", "root", "10241024cag");
     Query query(conn.query());
 
@@ -264,8 +264,7 @@ void create_new_table (int pos)
     {
       sql += it->first + " " + c_type_to_db_type[it->second] + " NOT NULL ,";
     }
-    sql.erase (sql.size()-1, 1);
-    //Remove the last comma
+    sql.erase (sql.size()-1, 1);	/* 去掉最后一个逗号 */
     sql += ") ENGINE = InnoDB CHARACTER SET utf8 COLLATE utf8_unicode_ci;";
     cout << sql << endl;
     query << sql;
@@ -279,9 +278,7 @@ void create_new_table (int pos)
   }
 }
 
-int
-//Return the template position in the cache array
-find_template_id (int id)
+int/*返回模板在缓存数组中的位置*/ find_template_id (int id)
 {
   cout << __LINE__ << " " << __FUNCTION__ << " id " << id << endl;
   for (int i = 0; i < tpl_cache.num; i++)
@@ -304,7 +301,7 @@ bool compare_field_same (int pos, struct template_hdr_v9* hdr)
   }
   struct otpl_field* field_ptr = (struct otpl_field*) (hdr+1);
   //cout << tpl_cache.c[pos].num << endl;
-  //Comparing each field type and length
+  //比较每一个字段的类型和长度
   for (int i = 0; i < tpl_cache.c[pos].num; i++)
   {
     //cout << tpl_cache.c[pos].tpl_entry[i].type << " " << ntohs((field_ptr+i)->type) << endl;
@@ -326,7 +323,7 @@ void handle_template_v9 (struct template_hdr_v9* hdr, u_int16_t type)
   struct template_cache_entry *tpl;
   int pos;
 
-  //If you find a template
+  //如果找到模板
   cout << __LINE__ << " tpl id : " << ntohs(hdr->template_id) << endl;
   if ( -1 != (pos = find_template_id (ntohs(hdr->template_id))))
   {
@@ -353,6 +350,7 @@ void handle_data_v9 (int pos, struct data_hdr_v9* hdr)
   int flowoff = 0;
   flowoff += sizeof (struct data_hdr_v9);
   while (flowoff + data_len <= data_flowset_len)
+
     //for (int i = 0; i < )
   {
 
@@ -362,7 +360,7 @@ void handle_data_v9 (int pos, struct data_hdr_v9* hdr)
 void process_v9_packet (unsigned char *pkt, int len /* 整个v9报文的长度 */)
 {
   //cout << __LINE__ << " " << __FUNCTION__ << endl;
-  //Record the location of the first pointer
+  //记录首指针的位置
   try
   {
     u_char *f_header = pkt; /* ptr to NetFlow packet header */ 
@@ -378,7 +376,7 @@ void process_v9_packet (unsigned char *pkt, int len /* 整个v9报文的长度 *
       cout << "INFO: discarding short NetFlow v9 packet" << endl;
       return;
     }
-    //Move the pointer to skip 20 byte header v9
+    //移动指针，跳过20字节的v9报文头
     pkt += NfHdrV9Sz;
     off += NfHdrV9Sz;
 
@@ -401,7 +399,7 @@ void process_v9_packet (unsigned char *pkt, int len /* 整个v9报文的长度 *
         unsigned char *tpl_ptr = pkt;
 
         flowoff = 0;
-        //Skip the first 4 bytes of data
+        //跳过4个字节的数据头
         tpl_ptr += NfDataHdrV9Sz;
         flowoff += NfDataHdrV9Sz;
         //This is the length of the template stream set
