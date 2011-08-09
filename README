@@ -1,3 +1,7 @@
 A netflow collector that saves record to the database
-this project is forked from:
+A few resources about Netflow:
+http://en.wikipedia.org/wiki/Netflow
+http://www.cisco.com/en/US/products/ps6645/products_ios_protocol_option_home.html
+
+This project was forked and inspired from the following application.
   http://code.google.com/p/netflow-version-9-packet-collector/

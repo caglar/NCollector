@@ -1,9 +1,10 @@
+#ifndef NETFLOW_H
+#define NETFLOW_H
+
+#include <stdint.h>
 #include <iostream>
-#include <string>
 
-using namespace std;
-
-/* Netflow stuff */
+#define SERV_PORT 8991
 
 /*  NetFlow Export Version 9 Header Format  */
 struct struct_header_v9 {
@@ -255,3 +256,6 @@ struct v8_handler_entry {
 /* functions */
 
 void process_v9_packet(unsigned char *pkt, int len);
+void var_init ();
+
+#endif
