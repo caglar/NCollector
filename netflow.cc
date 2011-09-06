@@ -239,10 +239,14 @@ insert_template_v9 ( struct template_hdr_v9* hdr )
     field_length += tpl_cache.c[tpl_cache.num].tpl_entry[i].len;
   }
   tpl_cache.c[tpl_cache.num].len = field_length;
+
   //cout << __LINE__ << " value length is " << field_length << endl;
+
   tpl_cache.num++;
+
   //cout << "size of new entry : " << strlen(new_template_entry) << endl;
-  return tpl_cache.num-1;//Just insert the template to return the position in the array
+  //Just insert the template to return the position in the array
+  return tpl_cache.num - 1;
 }
 
 void 
@@ -388,7 +392,6 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
     struct options_template_hdr_v9 *opt_template_hdr;
     struct data_hdr_v9 *data_hdr;
     u_int16_t fid, off = 0, flowoff, flowsetlen, flow_type;
-    printf("My host is: %s\n", cfg_params.db_params.host);
     Connection conn(cfg_params.db_params.dbname, cfg_params.db_params.host, cfg_params.db_params.username, cfg_params.db_params.password);
     Query query(conn.query());
     if (len < NfHdrV9Sz) 
@@ -454,6 +457,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
         unsigned char *dat_ptr = pkt;
         //printbinary    (pkt, len-20);
         struct otpl_field* field_ptr;
+        map<str>
         flowsetlen = ntohs(data_hdr->flow_len);
         if (off+flowsetlen > len) { 
           cout << __LINE__ << "INFO: unable to read next Data Flowset (incomplete NetFlow v9 packet)" << endl;
@@ -475,7 +479,8 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
         {
           string table_name (tpl_cache.c[pos].table_name);
           char tmp_str[46];
-
+          
+          map<char*, char*> column;
           string field_list;
           string value_list;
           cout << "flowsetlen is " << flowsetlen << endl;
