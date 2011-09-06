@@ -1,8 +1,12 @@
 clean: obj
 	rm *.o
-obj: ncollect.o netflow.o 
-	g++ -O4 -Wall -march=native -o ncollect -L /usr/local/lib/ -lmysqlpp netflow.o ncollect.o
-ncollect.o: ncollect.cc
-	g++ -O4 -Wall -c -march=native ncollect.cc
+OPT_FLAGS=-O4 -march=native
+FLAGS=-Wall -ggdb $(OPT_FLAGS)
+obj: ncollect.o netflow.o parse_conf.o
+	g++ $(FLAGS) -o ncollect -L /usr/local/lib/ -lmysqlpp netflow.o ncollect.o parse_conf.o
+ncollect.o: ncollect.cc parse_conf.o
+	g++ $(FLAGS) -c ncollect.cc
 netflow.o: netflow.cc
-	g++ -O4 -Wall -c -march=native -I /usr/local/include/mysql++ -I /usr/include/mysql netflow.cc
+	g++ $(FLAGS) -c -I /usr/local/include/mysql++ -I /usr/include/mysql netflow.cc
+parse_conf.o: parse_conf.cc
+	g++ $(FLAGS) -c  parse_conf.cc
