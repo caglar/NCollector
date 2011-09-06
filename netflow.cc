@@ -213,7 +213,7 @@ refresh_template_v9 ( int pos, struct template_hdr_v9* hdr )
 }
 
 int 
-insert_template_v9 ( struct template_hdr_v9* hdr )
+insert_template_v9 (struct template_hdr_v9* hdr)
 {
   //cout << __LINE__ << " " << __FUNCTION__ << endl;
   struct template_cache_entry *ptr, *prevptr = NULL;
@@ -351,14 +351,14 @@ handle_template_v9 (struct template_hdr_v9* hdr, u_int16_t type)
   {
     if ( !compare_field_same (pos, hdr) )
     {
-      create_new_table(pos);
+      //create_new_table(pos);
       refresh_template_v9(pos, hdr);
       //cout << __LINE__ << " " << __FUNCTION__ << endl;
     }
   }
   else
   {
-    create_new_table(pos);
+//    create_new_table(pos);
     pos = insert_template_v9(hdr);
     //cout << __LINE__ << " " << __FUNCTION__ << endl;
   }
@@ -379,7 +379,21 @@ handle_data_v9 (int pos, struct data_hdr_v9* hdr)
   }
 }
 
-void 
+void
+send_row (map<string, string> row, conf_params cfg_params)
+{
+  map<string, string>::iterator iter;
+  string s_row = "features ";
+
+  for (iter = row.begin(); iter != row.end(); iter++) {
+    s_row += (string)iter->first + ":" + (string)iter->second + " ";
+  }
+
+  s_row += "const=.01\n";
+  cout << s_row << endl;
+}
+
+void
 process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
 {
   cout << __LINE__ << " " << __FUNCTION__ << endl;
@@ -457,7 +471,6 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
         unsigned char *dat_ptr = pkt;
         //printbinary    (pkt, len-20);
         struct otpl_field* field_ptr;
-        map<str>
         flowsetlen = ntohs(data_hdr->flow_len);
         if (off+flowsetlen > len) { 
           cout << __LINE__ << "INFO: unable to read next Data Flowset (incomplete NetFlow v9 packet)" << endl;
@@ -479,8 +492,8 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
         {
           string table_name (tpl_cache.c[pos].table_name);
           char tmp_str[46];
-          
-          map<char*, char*> column;
+          map<string, string> row;
+
           string field_list;
           string value_list;
           cout << "flowsetlen is " << flowsetlen << endl;
@@ -498,6 +511,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
                  {
                    //unsigned char a = *((unsigned char*)dat_ptr);
                    sprintf(tmp_str, "%u", *((unsigned char*)dat_ptr));
+                   row[index_field_type_map[tpl_cache.c[pos].tpl_entry[i].type].first] = tmp_str;
                    value_list.append(tmp_str);
                    value_list += ", ";
                    dat_ptr++;
@@ -507,6 +521,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
                  {
                    //unsigned short b = ntohs(*((unsigned short*)dat_ptr));
                    sprintf (tmp_str, "%u", ntohs(*((unsigned short*)dat_ptr)));
+                   row[index_field_type_map[tpl_cache.c[pos].tpl_entry[i].type].first] = tmp_str;
                    value_list.append (tmp_str);
                    value_list += ", ";
                    dat_ptr += 2;
@@ -516,6 +531,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
                  {
                    //unsigned int c = ntohl(*((unsigned int*)dat_ptr));
                    sprintf (tmp_str, "%u", ntohl(*((unsigned int*)dat_ptr)));
+                   row[index_field_type_map[tpl_cache.c[pos].tpl_entry[i].type].first] = tmp_str;
                    value_list.append (tmp_str);
                    value_list += ", ";
                    dat_ptr += 4;
@@ -524,6 +540,9 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
                case 6:
                case 16:
                  {
+                   sprintf(tmp_str, "%u", *((unsigned char*)dat_ptr));
+                   row[index_field_type_map[tpl_cache.c[pos].tpl_entry[i].type].first] = tmp_str;
+
                    struct sockaddr_in6 e = *((sockaddr_in6*)dat_ptr);
                    inet_ntop(AF_INET6, (void*)&e, tmp_str, sizeof(tmp_str));
                    value_list.append ("\"");
@@ -540,6 +559,8 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
                  }
               }
             }
+            send_row(row, cfg_params);
+            row.empty();
             cout << "IN BYTES: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[1].type].second<<endl;
             cout << "PROTO: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[2].type].second<<endl;
             cout << "IN PKTS: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[4].type].second<<endl;
@@ -550,12 +571,13 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
 
             value_list.erase (value_list.size()-2, 2);	//Remove the last space and comma
             field_list.erase (field_list.size()-2, 2);	//Remove the last space and comma
-            string sql = "INSERT INTO " + table_name + " (" +field_list+ ")" + " VALUES (" +value_list+ ");";
-            value_list.clear();
-            field_list.clear();
-            cout << sql << endl;
-            query << sql;
-            query.execute();
+            //Just commented out the insert and create codes for mysql to solve the bug
+//            string sql = "INSERT INTO " + table_name + " (" +field_list+ ")" + " VALUES (" +value_list+ ");";
+//            value_list.clear();
+//            field_list.clear();
+//            cout << sql << endl;
+//            query << sql;
+//            query.execute();
             flowoff += tpl_cache.c[pos].len;
           }
         }

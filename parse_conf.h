@@ -14,6 +14,7 @@ struct conf_params{
 	bool debug_option;
 	bool replay_flows;
 	unsigned int replay_port;
+	char* replay_dest;
 };
 
 void

@@ -95,8 +95,12 @@ parse_conf_params(char *filename, conf_params &confs)
         }
       } else if (strcasestr(line, "REPLAY_PORT")) {
         confs.replay_port = (unsigned int) atoi(val);
+      } else if (strcasestr(line, "REPLAY_DEST")) {
+        confs.replay_dest = (char *) malloc(strlen(val) + 1);
+        strncpy(confs.replay_dest, val, strlen(val) + 1);
       }
+
     }
-    printf("Host is: %s\n", confs.db_params.host);
+//    printf("Host is: %s\n", confs.db_params.host);
   }
 }
