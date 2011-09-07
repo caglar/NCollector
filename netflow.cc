@@ -1,12 +1,15 @@
-#include <sys/types.h>
-#include <sys/socket.h>
+#include <unistd.h>
 #include <string.h>
-#include <netinet/in.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <mysql++/mysql++.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 
 #include <string>
 #include <iostream>
@@ -358,7 +361,7 @@ handle_template_v9 (struct template_hdr_v9* hdr, u_int16_t type)
   }
   else
   {
-//    create_new_table(pos);
+    //    create_new_table(pos);
     pos = insert_template_v9(hdr);
     //cout << __LINE__ << " " << __FUNCTION__ << endl;
   }
@@ -380,7 +383,7 @@ handle_data_v9 (int pos, struct data_hdr_v9* hdr)
 }
 
 void
-send_row (map<string, string> row, conf_params cfg_params)
+send_row (map<string, string> row, conf_params cfg_params, int sockfd, const struct sockaddr *dest_addr, socklen_t addrlen)
 {
   map<string, string>::iterator iter;
   string s_row = "features ";
@@ -391,6 +394,11 @@ send_row (map<string, string> row, conf_params cfg_params)
 
   s_row += "const=.01\n";
   cout << s_row << endl;
+  int numbytes;
+  if ((numbytes = sendto(sockfd, s_row.c_str(), s_row.length(), 0, dest_addr, addrlen)) == -1) {
+    perror("talker: sendto");
+    exit(1);
+  }
 }
 
 void
@@ -417,7 +425,32 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
     pkt += NfHdrV9Sz;
     off += NfHdrV9Sz;
 
-    //process_flowset:
+    //Prepare UDP send socket functionality for replay
+    int sockfd;
+    struct addrinfo hints, *servinfo, *p;
+    int rv;
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+    const char* replay_port = cfg_params.replay_port;
+    if ((rv = getaddrinfo(cfg_params.replay_dest, replay_port, &hints, &servinfo)) != 0) {
+      printf("Server name %s\n", cfg_params.replay_dest);
+      printf("Replay port %s\n", replay_port);
+      fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+      exit(EXIT_FAILURE);
+    }
+
+    // loop through all the results and make a socket
+    for(p = servinfo; p != NULL; p = p->ai_next) {
+      if ((sockfd = socket(p->ai_family, p->ai_socktype,
+                           p->ai_protocol)) == -1) {
+        perror("talker: socket");
+        continue;
+      }
+      break;
+    }
+
     do {
       if (off+NfDataHdrV9Sz >= len)
       {
@@ -427,7 +460,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
       data_hdr = (struct data_hdr_v9 *)pkt;
       fid = ntohs(data_hdr->flow_id);
 
-      if (fid == 0) 
+      if (fid == 0)
       {
         /* template */
         //cout << "template." << endl;
@@ -461,7 +494,6 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
           flowoff += sizeof(struct template_hdr_v9)+ntohs(template_hdr->num)*sizeof(struct template_field_v9);
           //cout << "template record. " << endl;
         }
-
         pkt += flowsetlen; 
         off += flowsetlen; 
       }
@@ -559,7 +591,9 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
                  }
               }
             }
-            send_row(row, cfg_params);
+
+            send_row(row, cfg_params, sockfd, p->ai_addr, p->ai_addrlen);
+
             row.empty();
             cout << "IN BYTES: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[1].type].second<<endl;
             cout << "PROTO: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[2].type].second<<endl;
@@ -572,12 +606,12 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
             value_list.erase (value_list.size()-2, 2);	//Remove the last space and comma
             field_list.erase (field_list.size()-2, 2);	//Remove the last space and comma
             //Just commented out the insert and create codes for mysql to solve the bug
-//            string sql = "INSERT INTO " + table_name + " (" +field_list+ ")" + " VALUES (" +value_list+ ");";
-//            value_list.clear();
-//            field_list.clear();
-//            cout << sql << endl;
-//            query << sql;
-//            query.execute();
+            //            string sql = "INSERT INTO " + table_name + " (" +field_list+ ")" + " VALUES (" +value_list+ ");";
+            //            value_list.clear();
+            //            field_list.clear();
+            //            cout << sql << endl;
+            //            query << sql;
+            //            query.execute();
             flowoff += tpl_cache.c[pos].len;
           }
         }
@@ -594,6 +628,9 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
         cout << "unknown." << endl;
       }
     } while(off < len);
+
+    freeaddrinfo(servinfo);
+    close(sockfd);
     conn.disconnect();
   }
   catch (const exception& er)

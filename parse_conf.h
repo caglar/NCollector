@@ -13,7 +13,7 @@ struct conf_params{
 	unsigned int port;
 	bool debug_option;
 	bool replay_flows;
-	unsigned int replay_port;
+	char* replay_port;
 	char* replay_dest;
 };
 
