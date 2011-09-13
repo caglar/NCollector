@@ -3,22 +3,18 @@
  *
  *       Filename:  listener.cc
  *
- *    Description:  
+ *    Description:  test listener for the flow replays
  *
  *        Version:  1.0
  *        Created:  09/07/2011 12:16:06 PM
  *       Revision:  none
  *       Compiler:  gcc
  *
- *         Author:  YOUR NAME (), 
+ *         Author:  YOUR NAME (Caglar), 
  *        Company:  
  *
  * =====================================================================================
  */
-/*
- ** listener.c -- a datagram sockets "server" demo
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -44,7 +40,7 @@ void *get_in_addr(struct sockaddr *sa)
   return &(((struct sockaddr_in6*)sa)->sin6_addr);
 }
 
-int main(void)
+int main(int argc, char *argv[])
 {
   int sockfd;
   struct addrinfo hints, *servinfo, *p;
@@ -54,7 +50,19 @@ int main(void)
   char buf[MAXBUFLEN];
   socklen_t addr_len;
   char s[INET6_ADDRSTRLEN];
-
+  char *port;
+  if (argc > 1)
+  {
+    if (argv[1] != "") {
+      port = argv[1];
+    }
+  }
+  else
+  {
+    perror("The command had no other arguments.\n");
+    exit(-1);
+  }
+  printf("Listening to port %s\n", port);
   memset(&hints, 0, sizeof hints);
   hints.ai_family = AF_UNSPEC; // set to AF_INET to force IPv4
   hints.ai_socktype = SOCK_DGRAM;

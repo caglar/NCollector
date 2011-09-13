@@ -26,19 +26,10 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
-#include "netflow.h"
-#include "parse_conf.h"
+#define NETFLOW_MSG_SIZE 1551
+#define MYPORT "9999"    // the port users will be connecting to
 
-
-//#define NETFLOW_MSG_SIZE 1551
-
-static conf_params cfg_params;
-static const char *CONF_FILE = "ncollect.cfg";
-
-void parse_conf(){
-  parse_conf_params(CONF_FILE, cfg_params);
-}
-
+#define MAXBUFLEN 512
 
 // get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa)
@@ -52,7 +43,6 @@ void *get_in_addr(struct sockaddr *sa)
 
 int main(int argc, char *argv[])
 {
-  var_init();
   int sockfd;
   struct addrinfo hints, *servinfo, *p;
   int rv;
@@ -61,12 +51,18 @@ int main(int argc, char *argv[])
   unsigned char buf[NETFLOW_MSG_SIZE];
   socklen_t addr_len;
   char s[INET6_ADDRSTRLEN];
-  char port[6];
-
-  parse_conf();
-  sprintf(port, "%u", cfg_params.port);
-  //itoa(cfg_params.port, port, 10);
-
+  char *port;
+  if (argc > 1)
+  {
+    if (argv[1] != "") {
+      port = argv[1];
+    }
+  }
+  else
+  {
+    perror("The command had no other arguments.\n");
+    exit(-1);
+  }
   printf("Listening to port %s\n", port);
   memset(&hints, 0, sizeof hints);
   hints.ai_family = AF_UNSPEC; // set to AF_INET to force IPv4
@@ -101,9 +97,6 @@ int main(int argc, char *argv[])
   }
 
   freeaddrinfo(servinfo);
-
-  unsigned short int packet_version;
-
   for (;;){
     printf("listener: waiting to recvfrom...\n");
 
@@ -118,14 +111,9 @@ int main(int argc, char *argv[])
            inet_ntop(their_addr.ss_family,
                      get_in_addr((struct sockaddr *)&their_addr),
                      s, sizeof s));
-    packet_version = ntohs((reinterpret_cast<struct_header_v9 *>(buf))->version);
-    
-    if (packet_version == 9) {
-      printf("listener: packet is %d bytes long\n", numbytes);
-      buf[numbytes] = '\0';
-      printf("listener: packet contains \"%s\"\n", buf);
-      process_v9_packet(buf, numbytes, cfg_params);
-    }
+    printf("listener: packet is %d bytes long\n", numbytes);
+    buf[numbytes] = '\0';
+    printf("listener: packet contains \"%s\"\n", buf);
   }
   close(sockfd);
   return 0;

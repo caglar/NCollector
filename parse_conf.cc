@@ -54,7 +54,7 @@ c_trim(char *str)
 }
 
 void
-parse_conf_params(char *filename, conf_params &confs)
+parse_conf_params(const char *filename, conf_params &confs)
 {
   char *line = new char[MAX_SIZE];
   FILE *fp ;
@@ -66,16 +66,21 @@ parse_conf_params(char *filename, conf_params &confs)
   while (fgets(line, MAX_SIZE, fp) != NULL) {
     char *val = strchr(line, '=');
     confs.debug_option = false;
+    confs.enable_mysql = false;
+    confs.enable_replay = false;
     //if the line is not a comment
     if (strcasestr(line, "#") == NULL && val != NULL) {
-      
       while(strstr(val, "=")){
         ++val;
       }
-
       val = c_trim(val);
       //check for each case
-      if (strcasestr(line, "MYSQL_USERNAME") != NULL) {
+      if (strcasestr(line, "ENABLE_MYSQL") != NULL) {
+        if (strcmp(val, "1") == 0) {
+          confs.enable_mysql = true;
+          printf("Mysql is enabled!\n");
+        }
+      } else if (strcasestr(line, "MYSQL_USERNAME") != NULL) {
         confs.db_params.username = (char *) malloc(strlen(val)+1);
         strncpy(confs.db_params.username, val, strlen(val) + 1);
       } else if (strcasestr(line, "MYSQL_HOST")) {
@@ -93,6 +98,11 @@ parse_conf_params(char *filename, conf_params &confs)
         if (strcmp(val, "1") == 0) {
           confs.debug_option = true;
         }
+      } else if (strcasestr(line, "ENABLE_REPLAY")) {
+        if (strcmp(val, "1") == 0) {
+          confs.enable_replay = true;
+          printf("Replay is on\n");
+        }
       } else if (strcasestr(line, "REPLAY_PORT")) {
         confs.replay_port = (char *) malloc(strlen(val) + 1);
         strncpy(confs.replay_port, val, strlen(val) + 1);
@@ -101,7 +111,6 @@ parse_conf_params(char *filename, conf_params &confs)
         confs.replay_dest = (char *) malloc(strlen(val) + 1);
         strncpy(confs.replay_dest, val, strlen(val) + 1);
       }
-
     }
   }
 }
