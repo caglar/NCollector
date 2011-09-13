@@ -1,3 +1,2 @@
 Known Bugs:
-
-Segfaults because the dat_ptr in process_v9_packet function is empty.
+  Mysql functionality is not functional.
