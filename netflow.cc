@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <syslog.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -45,7 +46,7 @@ const int NfOptTplHdrV9Sz = sizeof(struct options_template_hdr_v9);
 void
 var_init ()
 {
-  cout << "tpl_cache " << sizeof(tpl_cache) << " " << tpl_cache.num << endl;
+  cout << "Initializing the tpl_cache " << sizeof(tpl_cache) << " " << tpl_cache.num << endl;
   tpl_cache.num = 0;
 
   c_type_to_db_type["int"] = "BIGINT";
@@ -215,7 +216,7 @@ refresh_template_v9 ( int pos, struct template_hdr_v9* hdr )
   tpl_cache.c[pos].len = field_length;
 }
 
-int 
+int
 insert_template_v9 (struct template_hdr_v9* hdr)
 {
   //cout << __LINE__ << " " << __FUNCTION__ << endl;
@@ -230,7 +231,7 @@ insert_template_v9 (struct template_hdr_v9* hdr)
   tpl_cache.c[tpl_cache.num].template_type = 0;
   tpl_cache.c[tpl_cache.num].num = ntohs(hdr->num);//Number of fields
   string table_name = "template" + table_name_suffix();
-  memcpy (tpl_cache.c[tpl_cache.num].table_name, table_name.c_str(), table_name.size()+1);
+  memcpy (tpl_cache.c[tpl_cache.num].table_name, table_name.c_str(), table_name.size() + 1);
   tpl_cache.c[tpl_cache.num].table_name[23] = '\0';
 
   for (int i = 0; i < tpl_cache.c[tpl_cache.num].num; i++)
@@ -252,7 +253,7 @@ insert_template_v9 (struct template_hdr_v9* hdr)
   return tpl_cache.num - 1;
 }
 
-void 
+void
 parse_template_field (int pos, vector< pair<string, string> >& template_field)
 {
   //cout << __LINE__ << " " << __FUNCTION__ << endl;
@@ -266,15 +267,15 @@ parse_template_field (int pos, vector< pair<string, string> >& template_field)
   //cout << __LINE__ << " " << __FUNCTION__ << endl;
 }
 
-void 
-create_new_table (int pos)
+void
+create_new_table (int pos, conf_params &cfg_params)
 {
   cout << __LINE__ << " " << __FUNCTION__ << endl;
   try
   {
     vector < pair<string, string> > template_field;
     /* pair< Field names, the initial type> */
-    Connection conn("bw_nf_collector", "127.0.0.1", "root", "10241024cag");
+    Connection conn(cfg_params.db_params.dbname, cfg_params.db_params.host, cfg_params.db_params.username, cfg_params.db_params.password);
     Query query(conn.query());
 
     parse_template_field(pos, template_field);
@@ -318,7 +319,7 @@ find_template_id (int id)
   return -1;
 }
 
-bool 
+bool
 compare_field_same (int pos, struct template_hdr_v9* hdr)
 {
   if (tpl_cache.c[pos].num != ntohs(hdr->num))
@@ -343,7 +344,7 @@ compare_field_same (int pos, struct template_hdr_v9* hdr)
 }
 
 void 
-handle_template_v9 (struct template_hdr_v9* hdr, u_int16_t type)
+handle_template_v9 (struct template_hdr_v9* hdr, u_int16_t type, conf_params &cfg_params)
 {
   struct template_cache_entry *tpl;
   int pos;
@@ -354,14 +355,20 @@ handle_template_v9 (struct template_hdr_v9* hdr, u_int16_t type)
   {
     if ( !compare_field_same (pos, hdr) )
     {
-      //create_new_table(pos);
+      if (cfg_params.enable_mysql) {
+        create_new_table(pos, cfg_params);
+      }
+
       refresh_template_v9(pos, hdr);
       //cout << __LINE__ << " " << __FUNCTION__ << endl;
     }
   }
   else
   {
-    //    create_new_table(pos);
+    // create_new_table(pos);
+    if (cfg_params.enable_mysql) {
+      create_new_table(pos, cfg_params);
+    }
     pos = insert_template_v9(hdr);
     //cout << __LINE__ << " " << __FUNCTION__ << endl;
   }
@@ -376,14 +383,12 @@ handle_data_v9 (int pos, struct data_hdr_v9* hdr)
   int flowoff = 0;
   flowoff += sizeof (struct data_hdr_v9);
   while (flowoff + data_len <= data_flowset_len)
-    //for (int i = 0; i < )
   {
-
   }
 }
 
 void
-send_row (map<string, string> row, conf_params cfg_params, int sockfd, const struct sockaddr *dest_addr, socklen_t addrlen)
+send_row (map<string, string> row, conf_params &cfg_params, int sockfd, const struct sockaddr *dest_addr, socklen_t addrlen)
 {
   map<string, string>::iterator iter;
   string s_row = "features ";
@@ -392,8 +397,10 @@ send_row (map<string, string> row, conf_params cfg_params, int sockfd, const str
     s_row += (string)iter->first + ":" + (string)iter->second + " ";
   }
 
-  s_row += "const=.01\n";
-  cout << s_row << endl;
+  s_row += "const=.01";
+  if (cfg_params.debug_option) {
+    cout << "Sent row is: " << s_row << endl;
+  }
   int numbytes;
   if ((numbytes = sendto(sockfd, s_row.c_str(), s_row.length(), 0, dest_addr, addrlen)) == -1) {
     perror("talker: sendto");
@@ -402,7 +409,7 @@ send_row (map<string, string> row, conf_params cfg_params, int sockfd, const str
 }
 
 void
-process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
+process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
 {
   cout << __LINE__ << " " << __FUNCTION__ << endl;
   //Save the location of the first pointer
@@ -418,7 +425,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
     Query query(conn.query());
     if (len < NfHdrV9Sz) 
     {
-      cout << "INFO: discarding short NetFlow v9 packet" << endl;
+      syslog(LOG_INFO, "Discarding short NetFlow v9 packet");
       return;
     }
     //Move the pointer to skip 20 byte header v9
@@ -434,13 +441,15 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_DGRAM;
     const char* replay_port = cfg_params.replay_port;
+
     if ((rv = getaddrinfo(cfg_params.replay_dest, replay_port, &hints, &servinfo)) != 0) {
-      printf("Server name %s\n", cfg_params.replay_dest);
-      printf("Replay port %s\n", replay_port);
+      if (cfg_params.debug_option) {
+        printf("Server name %s\n", cfg_params.replay_dest);
+        printf("Replay port %s\n", replay_port);
+      }
       fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
       exit(EXIT_FAILURE);
     }
-
     // loop through all the results and make a socket
     for(p = servinfo; p != NULL; p = p->ai_next) {
       if ((sockfd = socket(p->ai_family, p->ai_socktype,
@@ -450,11 +459,11 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
       }
       break;
     }
-
+    
     do {
       if (off+NfDataHdrV9Sz >= len)
       {
-        cout << "INFO: unable to read next Flowset; incomplete NetFlow v9 packet" << endl;
+        syslog(LOG_NOTICE, "Unable to read next Flowset; incomplete NetFlow v9 packet");
         return;
       }
       data_hdr = (struct data_hdr_v9 *)pkt;
@@ -481,17 +490,17 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
           //Remove the template the second set of flow lines, is the first line of the template
           //record
           template_hdr = (struct template_hdr_v9 *) tpl_ptr;
-          if ( off+flowsetlen > len )
+          if ( off + flowsetlen > len )
           {
-            cout << "INFO: unable to read next Template Flowset; incomplete NetFlow v9 packet" << endl;
+            syslog(LOG_INFO, "Unable to read next Template Flowset; incomplete NetFlow v9 packet");
             break;
             //return;
           }
-          handle_template_v9(template_hdr, fid);
+          handle_template_v9(template_hdr, fid, cfg_params);
           //Move the pointer to the next template record
-          tpl_ptr += sizeof(struct template_hdr_v9)+ntohs(template_hdr->num)*sizeof(struct template_field_v9); 
+          tpl_ptr += sizeof(struct template_hdr_v9) + ntohs(template_hdr->num)*sizeof(struct template_field_v9); 
           //Calculate the length of the data have been processed, the template set of internal displacement flow
-          flowoff += sizeof(struct template_hdr_v9)+ntohs(template_hdr->num)*sizeof(struct template_field_v9);
+          flowoff += sizeof(struct template_hdr_v9) + ntohs(template_hdr->num)*sizeof(struct template_field_v9);
           //cout << "template record. " << endl;
         }
         pkt += flowsetlen; 
@@ -505,7 +514,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
         struct otpl_field* field_ptr;
         flowsetlen = ntohs(data_hdr->flow_len);
         if (off+flowsetlen > len) { 
-          cout << __LINE__ << "INFO: unable to read next Data Flowset (incomplete NetFlow v9 packet)" << endl;
+          syslog(LOG_NOTICE, "Line %d: Unable to read next Data Flowset (incomplete NetFlow v9 packet)", __LINE__);
           return;
         }
 
@@ -517,7 +526,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
         if (pos == -1)	//
         {
           //parse data packet
-          cout << __LINE__ << " DEBUG ( default/core ): Discarded NetFlow V9 packet (R: unknown template " << endl;
+          syslog(LOG_INFO, "Line %d ( default/core ): Discarded NetFlow V9 packet (R: unknown template )", __LINE__);
           return;
         }
         else
@@ -528,7 +537,6 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
 
           string field_list;
           string value_list;
-          cout << "flowsetlen is " << flowsetlen << endl;
           //Set inside a data stream decoding cycle
           while (flowoff + tpl_cache.c[pos].len <= flowsetlen)
           {
@@ -541,7 +549,6 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
               {
                case 1:
                  {
-                   //unsigned char a = *((unsigned char*)dat_ptr);
                    sprintf(tmp_str, "%u", *((unsigned char*)dat_ptr));
                    row[index_field_type_map[tpl_cache.c[pos].tpl_entry[i].type].first] = tmp_str;
                    value_list.append(tmp_str);
@@ -551,7 +558,6 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
                  }
                case 2:
                  {
-                   //unsigned short b = ntohs(*((unsigned short*)dat_ptr));
                    sprintf (tmp_str, "%u", ntohs(*((unsigned short*)dat_ptr)));
                    row[index_field_type_map[tpl_cache.c[pos].tpl_entry[i].type].first] = tmp_str;
                    value_list.append (tmp_str);
@@ -561,7 +567,6 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
                  }
                case 4:
                  {
-                   //unsigned int c = ntohl(*((unsigned int*)dat_ptr));
                    sprintf (tmp_str, "%u", ntohl(*((unsigned int*)dat_ptr)));
                    row[index_field_type_map[tpl_cache.c[pos].tpl_entry[i].type].first] = tmp_str;
                    value_list.append (tmp_str);
@@ -586,7 +591,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
                  }
                default:
                  {
-                   cout << __LINE__ << " unknown field length. " << endl;
+                   syslog(LOG_NOTICE, "Line %d:  unknown field length. ", __LINE__);
                    break;
                  }
               }
@@ -595,23 +600,17 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
             send_row(row, cfg_params, sockfd, p->ai_addr, p->ai_addrlen);
 
             row.empty();
-            cout << "IN BYTES: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[1].type].second<<endl;
-            cout << "PROTO: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[2].type].second<<endl;
-            cout << "IN PKTS: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[4].type].second<<endl;
-            cout << "OUT PKTS: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[23].type].second<<endl;
-            cout << "OUT BYTES: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[24].type].second<<endl;
-            cout << "SRC PORT: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[7].type].second<<endl;
-            cout << "DEST PORT: "  << index_field_type_map[tpl_cache.c[pos].tpl_entry[11].type].second<<endl;
 
             value_list.erase (value_list.size()-2, 2);	//Remove the last space and comma
             field_list.erase (field_list.size()-2, 2);	//Remove the last space and comma
-            //Just commented out the insert and create codes for mysql to solve the bug
-            //            string sql = "INSERT INTO " + table_name + " (" +field_list+ ")" + " VALUES (" +value_list+ ");";
-            //            value_list.clear();
-            //            field_list.clear();
-            //            cout << sql << endl;
-            //            query << sql;
-            //            query.execute();
+            if (cfg_params.enable_mysql) {
+              string sql = "INSERT INTO " + table_name + " (" +field_list+ ")" + " VALUES (" +value_list+ ");";
+              value_list.clear();
+              field_list.clear();
+              cout << sql << endl;
+              query << sql;
+              query.execute();
+            }
             flowoff += tpl_cache.c[pos].len;
           }
         }
@@ -620,17 +619,20 @@ process_v9_packet (unsigned char *pkt, int len, conf_params cfg_params)
         off += flowsetlen; 
       }
       else if (fid == 1) 
-      { /* options template */
+      {
+        /* options template */
         cout << "options." << endl;
       }
       else 
-      { /* unsupported flowset */
+      {
+        /* unsupported flowset */
         cout << "unknown." << endl;
       }
     } while(off < len);
 
-    freeaddrinfo(servinfo);
-    close(sockfd);
+    if (cfg_params.enable_replay) {
+      close(sockfd);
+    }
     conn.disconnect();
   }
   catch (const exception& er)

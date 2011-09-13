@@ -6,7 +6,6 @@
 
 #include "parse_conf.h"
 
-//#define SERV_PORT 8991
 
 /*  NetFlow Export Version 9 Header Format  */
 struct struct_header_v9 {
@@ -110,7 +109,6 @@ struct data_hdr_v9 /*flowset_hdr_v9*/ {
 
 /* defines */
 #define DEFAULT_NFACCTD_PORT 9996
-#define NETFLOW_MSG_SIZE 1550
 #define TEMPLATE_CACHE_ENTRIES 20
 
 #define NF_TIME_MSECS 0 /* times are in msecs */
@@ -256,7 +254,7 @@ struct v8_handler_entry {
 };
 
 /* functions */
-void process_v9_packet(unsigned char *pkt, int len, conf_params cfg_params);
+void process_v9_packet(unsigned char *pkt, int len, conf_params &cfg_params);
 void var_init ();
 
 #endif

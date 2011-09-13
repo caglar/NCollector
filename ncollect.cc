@@ -30,7 +30,7 @@
 #include "parse_conf.h"
 
 
-//#define NETFLOW_MSG_SIZE 1551
+#define NETFLOW_MSG_SIZE 1551
 
 static conf_params cfg_params;
 static const char *CONF_FILE = "ncollect.cfg";
@@ -82,13 +82,13 @@ int main(int argc, char *argv[])
   for(p = servinfo; p != NULL; p = p->ai_next) {
     if ((sockfd = socket(p->ai_family, p->ai_socktype,
                          p->ai_protocol)) == -1) {
-      perror("listener: socket");
+      perror("ncollect: socket error!");
       continue;
     }
 
     if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
       close(sockfd);
-      perror("listener: bind");
+      perror("ncollect: bind error");
       continue;
     }
 
@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
   }
 
   if (p == NULL) {
-    fprintf(stderr, "listener: failed to bind socket\n");
+    fprintf(stderr, "ncollect: failed to bind socket\n");
     return 2;
   }
 
@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
   unsigned short int packet_version;
 
   for (;;){
-    printf("listener: waiting to recvfrom...\n");
+    printf("ncollect: waiting to recvfrom...\n");
 
     addr_len = sizeof their_addr;
     if ((numbytes = recvfrom(sockfd, buf, NETFLOW_MSG_SIZE - 1, 0,
@@ -114,16 +114,16 @@ int main(int argc, char *argv[])
       exit(1);
     }
 
-    printf("listener: got packet from %s\n",
+    printf("ncollect: got packet from %s\n",
            inet_ntop(their_addr.ss_family,
                      get_in_addr((struct sockaddr *)&their_addr),
                      s, sizeof s));
     packet_version = ntohs((reinterpret_cast<struct_header_v9 *>(buf))->version);
     
     if (packet_version == 9) {
-      printf("listener: packet is %d bytes long\n", numbytes);
+      printf("ncollect: packet is %d bytes long\n", numbytes);
       buf[numbytes] = '\0';
-      printf("listener: packet contains \"%s\"\n", buf);
+      printf("ncollect: packet contains \"%s\"\n", buf);
       process_v9_packet(buf, numbytes, cfg_params);
     }
   }
