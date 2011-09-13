@@ -26,6 +26,13 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
+#include <fcntl.h>
+#include <syslog.h>
+#include <errno.h>
+#include <pwd.h>
+#include <signal.h>
+
+
 #include "netflow.h"
 #include "parse_conf.h"
 
@@ -38,18 +45,6 @@ static const char *CONF_FILE = "ncollect.cfg";
 void parse_conf(){
   parse_conf_params(CONF_FILE, cfg_params);
 }
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <syslog.h>
-#include <errno.h>
-#include <pwd.h>
-#include <signal.h>
 
 /* Change this to whatever your daemon is called */
 #define DAEMON_NAME "ncollectd"
