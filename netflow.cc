@@ -282,7 +282,7 @@ create_new_table (int pos, conf_params &cfg_params)
 
     string table_name(tpl_cache.c[pos].table_name);
     string sql = "CREATE TABLE IF NOT EXISTS " + table_name + " ( ";
-    //out << sql << endl;
+    cout << sql << endl;
     vector< pair<string, string> >::iterator it;
     for ( it = template_field.begin() ; it < template_field.end(); it++ ) 
     {
@@ -358,7 +358,6 @@ handle_template_v9 (struct template_hdr_v9* hdr, u_int16_t type, conf_params &cf
       if (cfg_params.enable_mysql) {
         create_new_table(pos, cfg_params);
       }
-
       refresh_template_v9(pos, hdr);
       //cout << __LINE__ << " " << __FUNCTION__ << endl;
     }

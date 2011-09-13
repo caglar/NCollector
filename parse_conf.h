@@ -10,6 +10,7 @@ struct mysql_params{
 
 struct conf_params{
 	bool enable_mysql;
+	bool daemonize;
 	mysql_params db_params;
 	unsigned int port;
 	bool debug_option;

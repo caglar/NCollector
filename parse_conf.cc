@@ -63,11 +63,12 @@ parse_conf_params(const char *filename, conf_params &confs)
     syslog(LOG_ALERT, "Can not read the file: %s\n", filename);
     exit(EXIT_FAILURE);
   }
+  confs.debug_option = false;
+  confs.enable_mysql = false;
+  confs.enable_replay = false;
+  confs.daemonize = false;
   while (fgets(line, MAX_SIZE, fp) != NULL) {
     char *val = strchr(line, '=');
-    confs.debug_option = false;
-    confs.enable_mysql = false;
-    confs.enable_replay = false;
     //if the line is not a comment
     if (strcasestr(line, "#") == NULL && val != NULL) {
       while(strstr(val, "=")){
@@ -102,6 +103,11 @@ parse_conf_params(const char *filename, conf_params &confs)
         if (strcmp(val, "1") == 0) {
           confs.enable_replay = true;
           printf("Replay is on\n");
+        }
+      } else if (strcasestr(line, "DAEMONIZE")) {
+        if (strcmp(val, "1") == 0) {
+          confs.daemonize = true;
+          printf("Daemonize is on\n");
         }
       } else if (strcasestr(line, "REPLAY_PORT")) {
         confs.replay_port = (char *) malloc(strlen(val) + 1);
