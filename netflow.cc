@@ -35,14 +35,14 @@ using std::exception;
 using mysqlpp::Query;
 using mysqlpp::Connection;
 
-struct template_cache tpl_cache;
-map <int, pair<string, string> > index_field_type_map;
-map <string, string> c_type_to_db_type;
-map <string, int> c_type_to_c_type_len;
-const int NfHdrV9Sz = sizeof(struct struct_header_v9);
-const int NfDataHdrV9Sz = sizeof(struct data_hdr_v9);
-const int NfTplHdrV9Sz = sizeof(struct template_hdr_v9);
-const int NfOptTplHdrV9Sz = sizeof(struct options_template_hdr_v9);
+static struct template_cache tpl_cache;
+static map <int, pair<string, string> > index_field_type_map;
+static map <string, string> c_type_to_db_type;
+static map <string, int> c_type_to_c_type_len;
+static const int NfHdrV9Sz = sizeof(struct struct_header_v9);
+static const int NfDataHdrV9Sz = sizeof(struct data_hdr_v9);
+static const int NfTplHdrV9Sz = sizeof(struct template_hdr_v9);
+static const int NfOptTplHdrV9Sz = sizeof(struct options_template_hdr_v9);
 
 void
 var_init ()
@@ -253,10 +253,12 @@ void
 parse_template_field (int pos, vector< pair<string, string> >& template_field)
 {
   struct template_field_v9* field_ptr = (struct template_field_v9*) tpl_cache.c[pos].tpl_entry;
+  cout << "The first part of first element of index_field_type_map: " << index_field_type_map[1].first << endl;
 
   for (int i = 0; i < tpl_cache.c[pos].num; i++)
   {
-    cout << "pos : " << pos << endl;
+//    cout << "pos : " << pos << endl;
+//    cout << "The first part of index_field_type_map: " << index_field_type_map[(field_ptr+i)->type].first << endl;
     template_field.push_back( index_field_type_map[(field_ptr+i)->type] );
   }
 }
@@ -276,18 +278,19 @@ create_new_table (int pos, conf_params &cfg_params)
 
     string table_name(tpl_cache.c[pos].table_name);
     string sql = "CREATE TABLE IF NOT EXISTS " + table_name + " ( ";
-    cout << sql << endl;
 
     vector< pair<string, string> >::iterator it;
     for ( it = template_field.begin() ; it < template_field.end(); it++ ) 
     {
-      sql += it->first + " " + c_type_to_db_type[it->second] + " NOT NULL ,";
+      if ((it->second).length() > 0 && (it->first).length() > 0) {
+        sql += it->first + " " + c_type_to_db_type[it->second] + " NOT NULL ,";
+      }
     }
 
     sql.erase (sql.size()-1, 1);
     //Remove the last comma
     sql += ") ENGINE = InnoDB CHARACTER SET utf8 COLLATE utf8_unicode_ci;";
-    cout << sql << endl;
+//    cout << "Create query is: " << sql << endl;
     query << sql;
     query.execute();
     conn.disconnect();
@@ -308,7 +311,6 @@ find_template_id (int id)
   {
     if (id == tpl_cache.c[i].template_id)
     {
-      cout << "position " << i << endl;
       return i;
     }
   }
@@ -360,10 +362,10 @@ handle_template_v9 (struct template_hdr_v9* hdr, u_int16_t type, conf_params &cf
   }
   else
   {
+    pos = insert_template_v9(hdr);
     if (cfg_params.enable_mysql) {
       create_new_table(pos, cfg_params);
     }
-    pos = insert_template_v9(hdr);
   }
 }
 
@@ -415,11 +417,13 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
     u_int16_t fid, off = 0, flowoff, flowsetlen, flow_type;
     Connection conn(cfg_params.db_params.dbname, cfg_params.db_params.host, cfg_params.db_params.username, cfg_params.db_params.password);
     Query query(conn.query());
-    if (len < NfHdrV9Sz) 
+
+    if (len < NfHdrV9Sz)
     {
       syslog(LOG_INFO, "Discarding short NetFlow v9 packet");
       return;
     }
+
     //Move the pointer to skip 20 byte header v9
     pkt += NfHdrV9Sz;
     off += NfHdrV9Sz;
@@ -442,6 +446,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
       fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
       exit(EXIT_FAILURE);
     }
+
     // loop through all the results and make a socket
     for(p = servinfo; p != NULL; p = p->ai_next) {
       if ((sockfd = socket(p->ai_family, p->ai_socktype,
@@ -474,8 +479,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
         //This is the length of the template stream set
         flowsetlen = ntohs(data_hdr->flow_len);
 
-        //cout << "flowsetlen is " << flowsetlen << endl;
-        while (flowoff < flowsetlen) 
+        while (flowoff < flowsetlen)
         {
           //Remove the template the second set of flow lines, is the first line of the template
           //record
@@ -528,7 +532,6 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
           //Set inside a data stream decoding cycle
           while (flowoff + tpl_cache.c[pos].len <= flowsetlen)
           {
-            //cout << __LINE__ << " data record. record length is " << tpl_cache.c[pos].len << endl;
             //Out of loop for a record value
             for (int i = 0; i < tpl_cache.c[pos].num; i++)
             {
@@ -595,7 +598,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
               string sql = "INSERT INTO " + table_name + " (" +field_list+ ")" + " VALUES (" +value_list+ ");";
               value_list.clear();
               field_list.clear();
-              cout << sql << endl;
+              cout << "Insert query is: " << sql << endl;
               query << sql;
               query.execute();
             }

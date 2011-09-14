@@ -238,10 +238,12 @@ int main(int argc, char *argv[])
                      get_in_addr((struct sockaddr *)&their_addr),
                      s, sizeof s));
     packet_version = ntohs((reinterpret_cast<struct_header_v9 *>(buf))->version);
+
     if (packet_version == 9) {
-      printf("ncollect: packet is %d bytes long\n", numbytes);
+      if (cfg_params.debug_option) {
+        printf("ncollect: packet is %d bytes long\n", numbytes);
+      }
       buf[numbytes] = '\0';
-      printf("ncollect: packet contains \"%s\"\n", buf);
       process_v9_packet(buf, numbytes, cfg_params);
     }
   }
