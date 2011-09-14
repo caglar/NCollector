@@ -25,13 +25,13 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <sys/stat.h>
 
 #include <fcntl.h>
 #include <syslog.h>
 #include <errno.h>
 #include <pwd.h>
 #include <signal.h>
-
 
 #include "netflow.h"
 #include "parse_conf.h"
@@ -46,10 +46,8 @@ void parse_conf(){
   parse_conf_params(CONF_FILE, cfg_params);
 }
 
-/* Change this to whatever your daemon is called */
 #define DAEMON_NAME "ncollectd"
 
-/* Change this to the user under which to run */
 #define RUN_AS_USER "ncollect"
 
 #define EXIT_SUCCESS 0
@@ -240,7 +238,6 @@ int main(int argc, char *argv[])
                      get_in_addr((struct sockaddr *)&their_addr),
                      s, sizeof s));
     packet_version = ntohs((reinterpret_cast<struct_header_v9 *>(buf))->version);
-    
     if (packet_version == 9) {
       printf("ncollect: packet is %d bytes long\n", numbytes);
       buf[numbytes] = '\0';

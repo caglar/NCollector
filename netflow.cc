@@ -22,6 +22,7 @@
 #include "netflow.h"
 
 using std::cout;
+using std::cerr;
 using std::endl;
 using std::vector;
 using std::map;
@@ -162,7 +163,7 @@ print_packet(unsigned char pkt[], int len)
   cout << endl;
 }
 
-void 
+void
 printbinary (unsigned char* bin, int len)
 {
   for (int i = 0; i < len; i += 4)
@@ -181,7 +182,6 @@ printbinary (unsigned char* bin, int len)
 string
 table_name_suffix ()
 {
-  //cout << __LINE__ << " " << __FUNCTION__ << endl;
   char tmp[15];
   struct tm* nowtime;
   time_t nt;
@@ -238,17 +238,13 @@ insert_template_v9 (struct template_hdr_v9* hdr)
   {
     tpl_cache.c[tpl_cache.num].tpl_entry[i].type = ntohs((field_ptr+i)->type);
     tpl_cache.c[tpl_cache.num].tpl_entry[i].len  = ntohs((field_ptr+i)->len);
-    //cout << __LINE__ << " field type " << tpl_cache.c[tpl_cache.num].tpl_entry[i].type \
-    << " field length " << tpl_cache.c[tpl_cache.num].tpl_entry[i].len << endl;
     field_length += tpl_cache.c[tpl_cache.num].tpl_entry[i].len;
   }
   tpl_cache.c[tpl_cache.num].len = field_length;
 
-  //cout << __LINE__ << " value length is " << field_length << endl;
 
   tpl_cache.num++;
 
-  //cout << "size of new entry : " << strlen(new_template_entry) << endl;
   //Just insert the template to return the position in the array
   return tpl_cache.num - 1;
 }
@@ -256,15 +252,13 @@ insert_template_v9 (struct template_hdr_v9* hdr)
 void
 parse_template_field (int pos, vector< pair<string, string> >& template_field)
 {
-  //cout << __LINE__ << " " << __FUNCTION__ << endl;
   struct template_field_v9* field_ptr = (struct template_field_v9*) tpl_cache.c[pos].tpl_entry;
 
   for (int i = 0; i < tpl_cache.c[pos].num; i++)
   {
-    //cout << (field_ptr+i)->type << endl;
+    cout << "pos : " << pos << endl;
     template_field.push_back( index_field_type_map[(field_ptr+i)->type] );
   }
-  //cout << __LINE__ << " " << __FUNCTION__ << endl;
 }
 
 void
@@ -283,11 +277,13 @@ create_new_table (int pos, conf_params &cfg_params)
     string table_name(tpl_cache.c[pos].table_name);
     string sql = "CREATE TABLE IF NOT EXISTS " + table_name + " ( ";
     cout << sql << endl;
+
     vector< pair<string, string> >::iterator it;
     for ( it = template_field.begin() ; it < template_field.end(); it++ ) 
     {
       sql += it->first + " " + c_type_to_db_type[it->second] + " NOT NULL ,";
     }
+
     sql.erase (sql.size()-1, 1);
     //Remove the last comma
     sql += ") ENGINE = InnoDB CHARACTER SET utf8 COLLATE utf8_unicode_ci;";
@@ -364,14 +360,11 @@ handle_template_v9 (struct template_hdr_v9* hdr, u_int16_t type, conf_params &cf
   }
   else
   {
-    // create_new_table(pos);
     if (cfg_params.enable_mysql) {
       create_new_table(pos, cfg_params);
     }
     pos = insert_template_v9(hdr);
-    //cout << __LINE__ << " " << __FUNCTION__ << endl;
   }
-  //cout << __LINE__ << " " << __FUNCTION__ << endl;
 }
 
 void 
@@ -458,7 +451,6 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
       }
       break;
     }
-    
     do {
       if (off+NfDataHdrV9Sz >= len)
       {
@@ -471,7 +463,6 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
       if (fid == 0)
       {
         /* template */
-        //cout << "template." << endl;
         print_packet (pkt, len-20);
         //printbinary    (pkt, len-20);
         unsigned char *tpl_ptr = pkt;
@@ -500,14 +491,12 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
           tpl_ptr += sizeof(struct template_hdr_v9) + ntohs(template_hdr->num)*sizeof(struct template_field_v9); 
           //Calculate the length of the data have been processed, the template set of internal displacement flow
           flowoff += sizeof(struct template_hdr_v9) + ntohs(template_hdr->num)*sizeof(struct template_field_v9);
-          //cout << "template record. " << endl;
         }
         pkt += flowsetlen; 
         off += flowsetlen; 
       }
       else if (fid >= 256) 
       { /* data */
-        //cout << "data." << endl;
         unsigned char *dat_ptr = pkt;
         //printbinary    (pkt, len-20);
         struct otpl_field* field_ptr;
@@ -613,7 +602,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
             flowoff += tpl_cache.c[pos].len;
           }
         }
-        //pkt += flowsetlen-flowoff; /* handling padding */
+        /* handling padding */
         pkt += flowsetlen;
         off += flowsetlen; 
       }
@@ -636,6 +625,6 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
   }
   catch (const exception& er)
   {
-    cout << __LINE__ << er.what() << endl;
+    cerr << __LINE__ << er.what() << endl;
   }
 }
