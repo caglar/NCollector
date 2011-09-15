@@ -257,8 +257,6 @@ parse_template_field (int pos, vector< pair<string, string> >& template_field)
 
   for (int i = 0; i < tpl_cache.c[pos].num; i++)
   {
-//    cout << "pos : " << pos << endl;
-//    cout << "The first part of index_field_type_map: " << index_field_type_map[(field_ptr+i)->type].first << endl;
     template_field.push_back( index_field_type_map[(field_ptr+i)->type] );
   }
 }
@@ -287,18 +285,17 @@ create_new_table (int pos, conf_params &cfg_params)
       }
     }
 
+    //Remove the last comma:
     sql.erase (sql.size()-1, 1);
-    //Remove the last comma
+    
     sql += ") ENGINE = InnoDB CHARACTER SET utf8 COLLATE utf8_unicode_ci;";
-//    cout << "Create query is: " << sql << endl;
     query << sql;
     query.execute();
     conn.disconnect();
   }
   catch (const exception& er)
   {
-    //record_to_logfile(db_log, er.what(), sql, __LINE__, __FUNCTION__, __FILE__);
-    cout << __LINE__ << er.what() << endl;
+    cerr << __LINE__ << er.what() << endl;
   }
 }
 
@@ -322,7 +319,6 @@ compare_field_same (int pos, struct template_hdr_v9* hdr)
 {
   if (tpl_cache.c[pos].num != ntohs(hdr->num))
   {
-    //cout << __LINE__ << " " << __FUNCTION__ << endl;
     return false;
   }
   struct otpl_field* field_ptr = (struct otpl_field*) (hdr+1);
@@ -363,6 +359,7 @@ handle_template_v9 (struct template_hdr_v9* hdr, u_int16_t type, conf_params &cf
   else
   {
     pos = insert_template_v9(hdr);
+    //Assign the pos variable from the flow header
     if (cfg_params.enable_mysql) {
       create_new_table(pos, cfg_params);
     }
@@ -535,15 +532,20 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
             //Out of loop for a record value
             for (int i = 0; i < tpl_cache.c[pos].num; i++)
             {
-              field_list += index_field_type_map[tpl_cache.c[pos].tpl_entry[i].type].first + ", ";
+              string field_name = index_field_type_map[tpl_cache.c[pos].tpl_entry[i].type].first;
+              if (field_name.length() > 0) {
+                field_list += field_name + ", ";
+              }
               switch ( tpl_cache.c[pos].tpl_entry[i].len )
               {
                case 1:
                  {
                    sprintf(tmp_str, "%u", *((unsigned char*)dat_ptr));
                    row[index_field_type_map[tpl_cache.c[pos].tpl_entry[i].type].first] = tmp_str;
-                   value_list.append(tmp_str);
-                   value_list += ", ";
+                   if (tmp_str != "") {
+                     value_list.append(tmp_str);
+                     value_list += ", ";
+                   }
                    dat_ptr++;
                    break;
                  }
@@ -551,8 +553,10 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
                  {
                    sprintf (tmp_str, "%u", ntohs(*((unsigned short*)dat_ptr)));
                    row[index_field_type_map[tpl_cache.c[pos].tpl_entry[i].type].first] = tmp_str;
-                   value_list.append (tmp_str);
-                   value_list += ", ";
+                   if (tmp_str != "") {
+                     value_list.append (tmp_str);
+                     value_list += ", ";
+                   }
                    dat_ptr += 2;
                    break;
                  }
@@ -560,8 +564,10 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
                  {
                    sprintf (tmp_str, "%u", ntohl(*((unsigned int*)dat_ptr)));
                    row[index_field_type_map[tpl_cache.c[pos].tpl_entry[i].type].first] = tmp_str;
-                   value_list.append (tmp_str);
-                   value_list += ", ";
+                   if (tmp_str != "") {
+                     value_list.append (tmp_str);
+                     value_list += ", ";
+                   }
                    dat_ptr += 4;
                    break;
                  }
@@ -573,10 +579,12 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
 
                    struct sockaddr_in6 e = *((sockaddr_in6*)dat_ptr);
                    inet_ntop(AF_INET6, (void*)&e, tmp_str, sizeof(tmp_str));
-                   value_list.append ("\"");
-                   value_list.append (tmp_str);
-                   value_list.append ("\"");
-                   value_list += ", ";
+                   if (tmp_str != "") {
+                     value_list.append ("\"");
+                     value_list.append (tmp_str);
+                     value_list.append ("\"");
+                     value_list += ", ";
+                   }
                    dat_ptr += 16;
                    break;
                  }
