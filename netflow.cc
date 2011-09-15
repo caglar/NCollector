@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <syslog.h>
+#include <pthread.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -20,6 +21,8 @@
 #include <exception>
 
 #include "netflow.h"
+
+#define NUM_THREADS 2
 
 using std::cout;
 using std::cerr;
@@ -43,6 +46,12 @@ static const int NfHdrV9Sz = sizeof(struct struct_header_v9);
 static const int NfDataHdrV9Sz = sizeof(struct data_hdr_v9);
 static const int NfTplHdrV9Sz = sizeof(struct template_hdr_v9);
 static const int NfOptTplHdrV9Sz = sizeof(struct options_template_hdr_v9);
+
+struct insq_thread_data {
+  int thread_id;
+  string sql;
+  Query *query;
+};
 
 void
 var_init ()
@@ -285,7 +294,7 @@ create_new_table (int pos, conf_params &cfg_params)
 
     //Remove the last comma:
     sql.erase (sql.size()-1, 1);
-    
+
     sql += ") ENGINE = InnoDB CHARACTER SET utf8 COLLATE utf8_unicode_ci;";
     query << sql;
     query.execute();
@@ -375,6 +384,15 @@ handle_data_v9 (int pos, struct data_hdr_v9* hdr)
   }
 }
 
+void* insert_query(void *arg) {
+  insq_thread_data *insq_tdata = static_cast<insq_thread_data *>(arg);
+  Query query = *(insq_tdata->query);
+  string sql = insq_tdata->sql;
+  query << sql;
+  query.execute();
+  return NULL;
+}
+
 void
 send_row (map<string, string> row, conf_params &cfg_params, int sockfd, const struct sockaddr *dest_addr, socklen_t addrlen)
 {
@@ -399,7 +417,19 @@ send_row (map<string, string> row, conf_params &cfg_params, int sockfd, const st
 void
 process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
 {
-  cout << __LINE__ << " " << __FUNCTION__ << endl;
+  //For multithreading purpose.
+  pthread_t thread[NUM_THREADS];
+  pthread_attr_t attr;
+
+  /*  Initialize and set thread detached attribute */
+  pthread_attr_init(&attr);
+  pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE); 
+  insq_thread_data insq_tdata[NUM_THREADS];
+
+  int rc;
+  void *status;
+
+  //cout << __LINE__ << " " << __FUNCTION__ << endl;
   //Save the location of the first pointer
   try
   {
@@ -519,6 +549,8 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
 
           string field_list;
           string value_list;
+          //thread count:
+          int tc = 0;
           //Set inside a data stream decoding cycle
           while (flowoff + tpl_cache.c[pos].len <= flowsetlen)
           {
@@ -599,10 +631,23 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
               string sql = "INSERT INTO " + table_name + " (" +field_list+ ")" + " VALUES (" +value_list+ ");";
               value_list.clear();
               field_list.clear();
-              cout << "Insert query is: " << sql << endl;
-              query << sql;
-              query.execute();
+
+              int t = tc % NUM_THREADS;
+              insq_tdata[t].thread_id = t;
+              insq_tdata[t].sql = sql;
+              insq_tdata[t].query = &query;
+              rc = pthread_create(&thread[t], &attr, insert_query, (void *) &insq_tdata[t]);
+              if (rc) {
+                syslog(LOG_PERROR, "return code from pthread_create() is %d\n", rc);
+                exit(-1);
+              }
+              if (cfg_params.debug_option) {
+                cout << "Insert query is: " << sql << endl;
+              }
+              ///              insert_query(sql, query);
             }
+
+            tc++;
             flowoff += tpl_cache.c[pos].len;
           }
         }
@@ -631,4 +676,14 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
   {
     cerr << __LINE__ << er.what() << endl;
   }
+  
+  pthread_attr_destroy(&attr);
+  for(int t = 0; t<NUM_THREADS; t++) {
+    rc = pthread_join(thread[t], &status);
+    if (rc) {
+      syslog(LOG_PERROR, "return code from pthread_join() is %d\n", rc);
+      exit(-1);
+    }
+  }
+  pthread_exit(NULL);
 }
