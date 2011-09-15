@@ -1,6 +1,6 @@
 clean: obj
 	rm *.o
-OPT_FLAGS=-O4 -march=native
+OPT_FLAGS=-O4 -march=native -fno-strict-aliasing
 FLAGS=-Wall -ggdb $(OPT_FLAGS)
 obj: ncollect.o netflow.o parse_conf.o
 	g++ $(FLAGS) -o ncollect -L /usr/local/lib/ -lmysqlpp netflow.o ncollect.o parse_conf.o

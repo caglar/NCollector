@@ -219,8 +219,6 @@ refresh_template_v9 ( int pos, struct template_hdr_v9* hdr )
 int
 insert_template_v9 (struct template_hdr_v9* hdr)
 {
-  //cout << __LINE__ << " " << __FUNCTION__ << endl;
-  struct template_cache_entry *ptr, *prevptr = NULL;
   //struct template_field_v9 *field;
   int field_length = 0;
   //cout << "field count " << field_count << endl;
@@ -340,7 +338,6 @@ compare_field_same (int pos, struct template_hdr_v9* hdr)
 void 
 handle_template_v9 (struct template_hdr_v9* hdr, u_int16_t type, conf_params &cfg_params)
 {
-  struct template_cache_entry *tpl;
   int pos;
 
   //If you find a template
@@ -406,12 +403,9 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
   //Save the location of the first pointer
   try
   {
-    u_char *f_header = pkt; /* ptr to NetFlow packet header */ 
-    struct template_cache_entry *tpl;
     struct template_hdr_v9 *template_hdr;
-    struct options_template_hdr_v9 *opt_template_hdr;
     struct data_hdr_v9 *data_hdr;
-    u_int16_t fid, off = 0, flowoff, flowsetlen, flow_type;
+    u_int16_t fid, off = 0, flowoff, flowsetlen;
     Connection conn(cfg_params.db_params.dbname, cfg_params.db_params.host, cfg_params.db_params.username, cfg_params.db_params.password);
     Query query(conn.query());
 
@@ -426,7 +420,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
     off += NfHdrV9Sz;
 
     //Prepare UDP send socket functionality for replay
-    int sockfd;
+    int sockfd = 0;
     struct addrinfo hints, *servinfo, *p;
     int rv;
 
@@ -500,7 +494,6 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
       { /* data */
         unsigned char *dat_ptr = pkt;
         //printbinary    (pkt, len-20);
-        struct otpl_field* field_ptr;
         flowsetlen = ntohs(data_hdr->flow_len);
         if (off+flowsetlen > len) { 
           syslog(LOG_NOTICE, "Line %d: Unable to read next Data Flowset (incomplete NetFlow v9 packet)", __LINE__);
@@ -542,7 +535,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
                  {
                    sprintf(tmp_str, "%u", *((unsigned char*)dat_ptr));
                    row[index_field_type_map[tpl_cache.c[pos].tpl_entry[i].type].first] = tmp_str;
-                   if (tmp_str != "") {
+                   if (strcmp(tmp_str, "") != 0) {
                      value_list.append(tmp_str);
                      value_list += ", ";
                    }
@@ -553,7 +546,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
                  {
                    sprintf (tmp_str, "%u", ntohs(*((unsigned short*)dat_ptr)));
                    row[index_field_type_map[tpl_cache.c[pos].tpl_entry[i].type].first] = tmp_str;
-                   if (tmp_str != "") {
+                   if (strcmp(tmp_str, "") != 0) {
                      value_list.append (tmp_str);
                      value_list += ", ";
                    }
@@ -564,7 +557,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
                  {
                    sprintf (tmp_str, "%u", ntohl(*((unsigned int*)dat_ptr)));
                    row[index_field_type_map[tpl_cache.c[pos].tpl_entry[i].type].first] = tmp_str;
-                   if (tmp_str != "") {
+                   if (strcmp(tmp_str, "") != 0) {
                      value_list.append (tmp_str);
                      value_list += ", ";
                    }
@@ -579,7 +572,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
 
                    struct sockaddr_in6 e = *((sockaddr_in6*)dat_ptr);
                    inet_ntop(AF_INET6, (void*)&e, tmp_str, sizeof(tmp_str));
-                   if (tmp_str != "") {
+                   if (strcmp(tmp_str, "") != 0) {
                      value_list.append ("\"");
                      value_list.append (tmp_str);
                      value_list.append ("\"");
