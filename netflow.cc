@@ -386,10 +386,12 @@ handle_data_v9 (int pos, struct data_hdr_v9* hdr)
 
 void* insert_query(void *arg) {
   insq_thread_data *insq_tdata = static_cast<insq_thread_data *>(arg);
-  Query query = *(insq_tdata->query);
+  Query *query = insq_tdata->query;
   string sql = insq_tdata->sql;
-  query << sql;
-  query.execute();
+  *query << sql;
+  if (query != NULL){
+    query->execute();
+  }
   return NULL;
 }
 
@@ -437,7 +439,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
     struct data_hdr_v9 *data_hdr;
     u_int16_t fid, off = 0, flowoff, flowsetlen;
     Connection conn(cfg_params.db_params.dbname, cfg_params.db_params.host, cfg_params.db_params.username, cfg_params.db_params.password);
-    Query query(conn.query());
+    Query *query = new Query(conn.query());
 
     if (len < NfHdrV9Sz)
     {
@@ -635,7 +637,7 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
               int t = tc % NUM_THREADS;
               insq_tdata[t].thread_id = t;
               insq_tdata[t].sql = sql;
-              insq_tdata[t].query = &query;
+              insq_tdata[t].query = query;
               rc = pthread_create(&thread[t], &attr, insert_query, (void *) &insq_tdata[t]);
               if (rc) {
                 syslog(LOG_PERROR, "return code from pthread_create() is %d\n", rc);
@@ -666,7 +668,18 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
         cout << "unknown." << endl;
       }
     } while(off < len);
-
+    
+    //Wait for threads to finish
+    pthread_attr_destroy(&attr);
+    for(int t = 0; t<NUM_THREADS; t++) {
+      rc = pthread_join(thread[t], &status);
+      if (rc) {
+        syslog(LOG_PERROR, "return code from pthread_join() is %d\n", rc);
+        exit(-1);
+      }
+    }
+    pthread_exit(NULL);
+    
     if (cfg_params.enable_replay) {
       close(sockfd);
     }
@@ -676,14 +689,5 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
   {
     cerr << __LINE__ << er.what() << endl;
   }
-  
-  pthread_attr_destroy(&attr);
-  for(int t = 0; t<NUM_THREADS; t++) {
-    rc = pthread_join(thread[t], &status);
-    if (rc) {
-      syslog(LOG_PERROR, "return code from pthread_join() is %d\n", rc);
-      exit(-1);
-    }
-  }
-  pthread_exit(NULL);
+
 }

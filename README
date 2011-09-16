@@ -4,6 +4,7 @@ A few resources about Netflow for information on Netflow:
 Netflow Wikipedia Article: http://en.wikipedia.org/wiki/Netflow
 Cisco Netflow Page: http://www.cisco.com/en/US/products/ps6645/products_ios_protocol_option_home.html
 RFC 3954: http://www.ietf.org/rfc/rfc3954.txt
+Netflow Packet v9: http://netflow.caligare.com/netflow_v9.htm
 
 This project was forked and inspired from the following application:
 http://code.google.com/p/netflow-version-9-packet-collector/
