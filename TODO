@@ -1,1 +1,2 @@
-* Add NoSQL support
+* Add NoSQL support.
+* Add connection pool support for the mysql driver.

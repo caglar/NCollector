@@ -384,7 +384,11 @@ handle_data_v9 (int pos, struct data_hdr_v9* hdr)
   }
 }
 
+pthread_mutex_t insertQMutex = PTHREAD_MUTEX_INITIALIZER;
+
 void* insert_query(void *arg) {
+
+  pthread_mutex_lock( &insertQMutex );
   insq_thread_data *insq_tdata = static_cast<insq_thread_data *>(arg);
   Query *query = insq_tdata->query;
   string sql = insq_tdata->sql;
@@ -392,6 +396,7 @@ void* insert_query(void *arg) {
   if (query != NULL){
     query->execute();
   }
+  pthread_mutex_unlock( &insertQMutex );
   return NULL;
 }
 

@@ -15,6 +15,7 @@
  *
  * =====================================================================================
  */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -26,6 +27,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <sys/stat.h>
+#include <mysql++/mysql++.h>
 
 #include <fcntl.h>
 #include <syslog.h>
