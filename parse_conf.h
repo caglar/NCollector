@@ -15,6 +15,7 @@ struct conf_params{
 	unsigned int port;
 	bool debug_option;
 	bool enable_replay;
+	bool replay_vw;
 	char* replay_port;
 	char* replay_dest;
 };

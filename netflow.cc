@@ -401,7 +401,7 @@ void* insert_query(void *arg) {
 }
 
 void
-send_row (map<string, string> row, conf_params &cfg_params, int sockfd, const struct sockaddr *dest_addr, socklen_t addrlen)
+send_vw_row (map<string, string> row, conf_params &cfg_params, int sockfd, const struct sockaddr *dest_addr, socklen_t addrlen)
 {
   map<string, string>::iterator iter;
   string s_row = "features ";
@@ -416,7 +416,31 @@ send_row (map<string, string> row, conf_params &cfg_params, int sockfd, const st
   }
   int numbytes;
   if ((numbytes = sendto(sockfd, s_row.c_str(), s_row.length(), 0, dest_addr, addrlen)) == -1) {
-    perror("talker: sendto");
+    perror("nCollector: send_vw_row error");
+    exit(1);
+  }
+}
+
+void
+send_csv_row (map<string, string> row, conf_params &cfg_params, int sockfd, const struct sockaddr *dest_addr, socklen_t addrlen)
+{
+  map<string, string>::iterator iter;
+  string s_row = "";
+
+  for (iter = row.begin(); iter != row.end(); iter++) {
+    s_row += (string)iter->second + ",";
+  }
+  
+  if (str.size () > 0)
+	s_row.resize (s_row.size () - 1);
+
+  if (cfg_params.debug_option) {
+    cout << "Sent row is: " << s_row << endl;
+  }
+  
+  int numbytes;
+  if ((numbytes = sendto(sockfd, s_row.c_str(), s_row.length(), 0, dest_addr, addrlen)) == -1) {
+    perror("nCollector: send_csv_row error");
     exit(1);
   }
 }
@@ -628,7 +652,13 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
               }
             }
 
-            send_row(row, cfg_params, sockfd, p->ai_addr, p->ai_addrlen);
+			if (cfg_params.enable_replay) {
+				if (cfg_params.replay_vw) {	
+		            send_vw_row(row, cfg_params, sockfd, p->ai_addr, p->ai_addrlen);
+				} else {
+	        	    send_csv_row(row, cfg_params, sockfd, p->ai_addr, p->ai_addrlen);
+				}
+			}
 
             row.empty();
 
@@ -694,5 +724,4 @@ process_v9_packet (unsigned char *pkt, int len, conf_params &cfg_params)
   {
     cerr << __LINE__ << er.what() << endl;
   }
-
 }

@@ -109,7 +109,12 @@ parse_conf_params(const char *filename, conf_params &confs)
           confs.daemonize = true;
           printf("Daemonize is on\n");
         }
-      } else if (strcasestr(line, "REPLAY_PORT")) {
+      } else if (strcasestr(line, "REPLAY_VW")){
+	    if (strcmp(val, "1") == 0) {
+          confs.replay_vw = true;
+          printf("Replay is on\n");
+        }
+	  } else if (strcasestr(line, "REPLAY_PORT")) {
         confs.replay_port = (char *) malloc(strlen(val) + 1);
         strncpy(confs.replay_port, val, strlen(val) + 1);
 
